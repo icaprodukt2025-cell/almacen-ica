@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>ICA PRODUKT — Almacén IA</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --verde: #00C853;
+    --verde-dim: #00a844;
+    --negro: #0a0a0a;
+    --gris-oscuro: #141414;
+    --gris-medio: #1e1e1e;
+    --gris-borde: #2a2a2a;
+    --gris-texto: #888;
+    --blanco: #f0f0f0;
+    --amarillo: #FFD600;
+    --rojo: #FF3D3D;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--negro);
+    color: var(--blanco);
+    font-family: 'Barlow', sans-serif;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* HEADER */
+  header {
+    background: var(--gris-oscuro);
+    border-bottom: 2px solid var(--verde);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .logo {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 800;
+    font-size: 1.4rem;
+    letter-spacing: 0.05em;
+    color: var(--blanco);
+  }
+  .logo span { color: var(--verde); }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--gris-medio);
+    border: 1px solid var(--gris-borde);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    color: var(--gris-texto);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .status-pill:hover { border-color: var(--verde); color: var(--blanco); }
+  .status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--gris-texto);
+    transition: background 0.3s;
+  }
+  .status-dot.online { background: var(--verde); box-shadow: 0 0 6px var(--verde); }
+  .status-dot.error { background: var(--rojo); }
+
+  /* STATS BAR */
+  .stats-bar {
+    background: var(--gris-medio);
+    border-bottom: 1px solid var(--gris-borde);
+    padding: 8px 16px;
+    display: flex;
+    gap: 20px;
+    flex-shrink: 0;
+    overflow-x: auto;
+  }
+  .stat {
+    display: flex;
+    flex-direction: column;
+    white-space: nowrap;
+  }
+  .stat-label {
+    font-size: 0.62rem;
+    letter-spacing: 0.1em;
+    color: var(--gris-texto);
+    text-transform: uppercase;
+    font-family: 'Barlow Condensed', sans-serif;
+  }
+  .stat-value {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--verde);
+  }
+
+  /* CHAT AREA */
+  .chat-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    scroll-behavior: smooth;
+  }
+
+  .chat-container::-webkit-scrollbar { width: 4px; }
+  .chat-container::-webkit-scrollbar-track { background: transparent; }
+  .chat-container::-webkit-scrollbar-thumb { background: var(--gris-borde); border-radius: 2px; }
+
+  /* MESSAGES */
+  .msg {
+    display: flex;
+    flex-direction: column;
+    max-width: 88%;
+    animation: fadeUp 0.25s ease;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .msg.user { align-self: flex-end; align-items: flex-end; }
+  .msg.bot { align-self: flex-start; align-items: flex-start; }
+
+  .msg-label {
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--gris-texto);
+    margin-bottom: 4px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 600;
+  }
+
+  .msg-bubble {
+    padding: 10px 14px;
+    border-radius: 4px;
+    font-size: 0.88rem;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .msg.user .msg-bubble {
+    background: var(--verde);
+    color: #000;
+    font-weight: 500;
+    border-bottom-right-radius: 1px;
+  }
+
+  .msg.bot .msg-bubble {
+    background: var(--gris-medio);
+    border: 1px solid var(--gris-borde);
+    color: var(--blanco);
+    border-bottom-left-radius: 1px;
+  }
+
+  .msg.bot .msg-bubble.error {
+    border-color: var(--rojo);
+    color: var(--rojo);
+  }
+
+  /* TYPING */
+  .typing-bubble {
+    background: var(--gris-medio);
+    border: 1px solid var(--gris-borde);
+    padding: 12px 16px;
+    border-radius: 4px;
+    display: flex;
+    gap: 5px;
+    align-items: center;
+  }
+  .typing-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--verde);
+    animation: bounce 1.2s infinite;
+  }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-5px); opacity: 1; }
+  }
+
+  /* SUGGESTIONS */
+  .suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 4px;
+  }
+  .suggestion-btn {
+    background: transparent;
+    border: 1px solid var(--gris-borde);
+    color: var(--gris-texto);
+    padding: 5px 10px;
+    border-radius: 3px;
+    font-size: 0.75rem;
+    font-family: 'Barlow', sans-serif;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: left;
+  }
+  .suggestion-btn:hover {
+    border-color: var(--verde);
+    color: var(--verde);
+    background: rgba(0,200,83,0.05);
+  }
+
+  /* INPUT AREA */
+  .input-area {
+    padding: 12px 16px;
+    background: var(--gris-oscuro);
+    border-top: 1px solid var(--gris-borde);
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+    flex-shrink: 0;
+  }
+
+  textarea {
+    flex: 1;
+    background: var(--gris-medio);
+    border: 1px solid var(--gris-borde);
+    color: var(--blanco);
+    font-family: 'Barlow', sans-serif;
+    font-size: 0.9rem;
+    padding: 10px 14px;
+    border-radius: 4px;
+    resize: none;
+    outline: none;
+    max-height: 120px;
+    min-height: 44px;
+    line-height: 1.4;
+    transition: border-color 0.2s;
+  }
+  textarea:focus { border-color: var(--verde); }
+  textarea::placeholder { color: var(--gris-texto); }
+
+  .send-btn {
+    background: var(--verde);
+    border: none;
+    border-radius: 4px;
+    width: 44px;
+    height: 44px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.2s, transform 0.1s;
+  }
+  .send-btn:hover { background: var(--verde-dim); }
+  .send-btn:active { transform: scale(0.95); }
+  .send-btn:disabled { background: var(--gris-borde); cursor: not-allowed; }
+  .send-btn svg { fill: #000; }
+
+  /* WELCOME */
+  .welcome {
+    text-align: center;
+    padding: 30px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  .welcome-icon {
+    font-size: 2.5rem;
+    margin-bottom: 4px;
+  }
+  .welcome h2 {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 1.3rem;
+    letter-spacing: 0.05em;
+  }
+  .welcome p {
+    font-size: 0.82rem;
+    color: var(--gris-texto);
+    max-width: 280px;
+    line-height: 1.5;
+  }
+
+  .divider {
+    height: 1px;
+    background: var(--gris-borde);
+    margin: 8px 0;
+    width: 100%;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">ICA <span>PRODUKT</span> · ALMACÉN</div>
+  <div class="status-pill" onclick="checkStatus()">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">Conectando...</span>
+  </div>
+</header>
+
+<div class="stats-bar" id="statsBar" style="display:none">
+  <div class="stat">
+    <span class="stat-label">Pedidos hoy</span>
+    <span class="stat-value" id="statPedidos">—</span>
+  </div>
+  <div class="stat">
+    <span class="stat-label">Líneas carga</span>
+    <span class="stat-value" id="statCargas">—</span>
+  </div>
+  <div class="stat">
+    <span class="stat-label">Actualizado</span>
+    <span class="stat-value" id="statFecha" style="font-size:0.85rem;color:var(--gris-texto)">—</span>
+  </div>
+</div>
+
+<div class="chat-container" id="chat">
+  <div class="welcome" id="welcome">
+    <div class="welcome-icon">📦</div>
+    <h2>ASISTENTE DE ALMACÉN</h2>
+    <p>Pregúntame lo que necesites sobre los pedidos y cargas del día</p>
+    <div class="divider"></div>
+    <div class="suggestions">
+      <button class="suggestion-btn" onclick="useSuggestion(this)">¿Qué pedidos tenemos hoy?</button>
+      <button class="suggestion-btn" onclick="useSuggestion(this)">¿Hay alguna incidencia?</button>
+      <button class="suggestion-btn" onclick="useSuggestion(this)">¿Qué transportistas salen hoy?</button>
+      <button class="suggestion-btn" onclick="useSuggestion(this)">Dame el resumen del día</button>
+    </div>
+  </div>
+</div>
+
+<div class="input-area">
+  <textarea 
+    id="input" 
+    placeholder="Pregunta por un pedido, transportista, bultos..." 
+    rows="1"
+    onkeydown="handleKey(event)"
+    oninput="autoResize(this)"
+  ></textarea>
+  <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+    <svg width="18" height="18" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+  </button>
+</div>
+
+<script>
+  const chat = document.getElementById('chat');
+  const input = document.getElementById('input');
+  const sendBtn = document.getElementById('sendBtn');
+  let historial = [];
+  let isLoading = false;
+
+  // ── STATUS CHECK ────────────────────────────────────────────────────────────
+  async function checkStatus() {
+    const dot = document.getElementById('statusDot');
+    const text = document.getElementById('statusText');
+    try {
+      const res = await fetch('/api/status');
+      const data = await res.json();
+      if (data.ok) {
+        dot.className = 'status-dot online';
+        text.textContent = 'Datos cargados';
+        document.getElementById('statsBar').style.display = 'flex';
+        document.getElementById('statPedidos').textContent = data.pedidos;
+        document.getElementById('statCargas').textContent = data.lineas_carga;
+        document.getElementById('statFecha').textContent = data.fecha;
+      } else {
+        dot.className = 'status-dot error';
+        text.textContent = 'Sin datos';
+        addMessage('bot', '⚠️ ' + data.error, true);
+      }
+    } catch(e) {
+      dot.className = 'status-dot error';
+      text.textContent = 'Sin conexión';
+    }
+  }
+
+  // ── MESSAGES ────────────────────────────────────────────────────────────────
+  function addMessage(role, content, isError = false) {
+    const welcome = document.getElementById('welcome');
+    if (welcome) welcome.remove();
+
+    const msg = document.createElement('div');
+    msg.className = `msg ${role}`;
+
+    const label = document.createElement('div');
+    label.className = 'msg-label';
+    label.textContent = role === 'user' ? 'Tú' : 'Asistente';
+
+    const bubble = document.createElement('div');
+    bubble.className = `msg-bubble${isError ? ' error' : ''}`;
+    bubble.textContent = content;
+
+    msg.appendChild(label);
+    msg.appendChild(bubble);
+    chat.appendChild(msg);
+    chat.scrollTop = chat.scrollHeight;
+    return msg;
+  }
+
+  function showTyping() {
+    const wrap = document.createElement('div');
+    wrap.className = 'msg bot';
+    wrap.id = 'typing';
+
+    const label = document.createElement('div');
+    label.className = 'msg-label';
+    label.textContent = 'Asistente';
+
+    const bubble = document.createElement('div');
+    bubble.className = 'typing-bubble';
+    bubble.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+
+    wrap.appendChild(label);
+    wrap.appendChild(bubble);
+    chat.appendChild(wrap);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function removeTyping() {
+    const t = document.getElementById('typing');
+    if (t) t.remove();
+  }
+
+  // ── SEND ────────────────────────────────────────────────────────────────────
+  async function sendMessage() {
+    const text = input.value.trim();
+    if (!text || isLoading) return;
+
+    isLoading = true;
+    sendBtn.disabled = true;
+    input.value = '';
+    autoResize(input);
+
+    addMessage('user', text);
+    historial.push({ role: 'user', content: text });
+
+    showTyping();
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pregunta: text, historial })
+      });
+      const data = await res.json();
+      removeTyping();
+      const respuesta = data.respuesta || 'Sin respuesta';
+      addMessage('bot', respuesta);
+      historial.push({ role: 'model', content: respuesta });
+    } catch(e) {
+      removeTyping();
+      addMessage('bot', 'Error de conexión. Comprueba que la app está activa.', true);
+    }
+
+    isLoading = false;
+    sendBtn.disabled = false;
+    input.focus();
+  }
+
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  }
+
+  function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  }
+
+  function useSuggestion(btn) {
+    input.value = btn.textContent;
+    autoResize(input);
+    sendMessage();
+  }
+
+  // Init
+  checkStatus();
+  setInterval(checkStatus, 5 * 60 * 1000); // Refresca cada 5 min
+</script>
+</body>
+</html>
