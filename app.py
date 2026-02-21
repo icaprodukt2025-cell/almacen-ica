@@ -15,9 +15,9 @@ app = Flask(__name__, static_folder='static')
 CORS(app)
 
 # ── CONFIGURACIÓN ──────────────────────────────────────────────────────────────
-GEMINI_API_KEY = "AIzaSyCfgAPBxNJfsEIjdMmgnwIubgYR_l0EOyM"
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 DRIVE_FOLDER_ID = "1o3fD5O3N65DQjXlzjmo_NfMAgCzTvIDv"
-SERVICE_ACCOUNT_FILE = "service_account.json"
+SERVICE_ACCOUNT_INFO = json.loads(os.environ.get("GOOGLE_SERVICE_ACCOUNT", "{}"))
 
 SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
 
@@ -26,8 +26,9 @@ model = genai.GenerativeModel("gemini-1.5-flash")
 
 # ── GOOGLE DRIVE ───────────────────────────────────────────────────────────────
 def get_drive_service():
-    creds = service_account.Credentials.from_service_account_file(
-        SERVICE_ACCOUNT_FILE, scopes=SCOPES
+    creds = service_account.Credentials.from_service_account_info(
+    SERVICE_ACCOUNT_INFO, scopes=SCOPES
+)
     )
     return build("drive", "v3", credentials=creds)
 
