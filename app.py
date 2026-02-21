@@ -27,8 +27,7 @@ model = genai.GenerativeModel("gemini-1.5-flash")
 # ── GOOGLE DRIVE ───────────────────────────────────────────────────────────────
 def get_drive_service():
     creds = service_account.Credentials.from_service_account_info(
-    SERVICE_ACCOUNT_INFO, scopes=SCOPES
-)
+        SERVICE_ACCOUNT_INFO, scopes=SCOPES
     )
     return build("drive", "v3", credentials=creds)
 
