@@ -64,7 +64,7 @@ def load_data():
         # Normalizar columna de pedido
         for df in [df_pedidos, df_cargas]:
             for col in df.columns:
-                if "pedido" in col.lower() or col.lower() in ["nº pedido", "n pedido", "pedido"]:
+                if isinstance(col, str) and ("pedido" in col.lower() or col.lower() in ["nº pedido", "n pedido", "pedido"]):
                     df.rename(columns={col: "Pedido"}, inplace=True)
                     df["Pedido"] = df["Pedido"].astype(str).str.strip()
                     break
