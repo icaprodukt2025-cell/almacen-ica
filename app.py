@@ -3,26 +3,24 @@ from flask_cors import CORS
 import os
 import json
 import pandas as pd
-import google.generativeai as genai
+import anthropic
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 import io
-import tempfile
 from datetime import datetime
 
 app = Flask(__name__, static_folder='static')
 CORS(app)
 
 # ── CONFIGURACIÓN ──────────────────────────────────────────────────────────────
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 DRIVE_FOLDER_ID = "1o3fD5O3N65DQjXlzjmo_NfMAgCzTvIDv"
 SERVICE_ACCOUNT_INFO = json.loads(os.environ.get("GOOGLE_SERVICE_ACCOUNT", "{}"))
 
 SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
 
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel("gemini-2.0-flash")
+claude = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
 # ── GOOGLE DRIVE ───────────────────────────────────────────────────────────────
 def get_drive_service():
@@ -56,12 +54,11 @@ def load_data():
         cargas_buf = download_excel_from_drive(service, "cargas.xlsx")
 
         if pedidos_buf is None or cargas_buf is None:
-            return None, None, "No se encontraron los archivos en Drive. Asegúrate de que 'pedidos.xlsx' y 'cargas.xlsx' están en la carpeta."
+            return None, None, "No se encontraron los archivos en Drive. Asegurate de que 'pedidos.xlsx' y 'cargas.xlsx' estan en la carpeta."
 
         df_pedidos = pd.read_excel(pedidos_buf)
         df_cargas = pd.read_excel(cargas_buf)
 
-        # Normalizar columna de pedido
         for df in [df_pedidos, df_cargas]:
             for col in df.columns:
                 if isinstance(col, str) and ("pedido" in col.lower() or col.lower() in ["nº pedido", "n pedido", "pedido"]):
@@ -103,37 +100,39 @@ def chat():
     historial = data.get("historial", [])
 
     if not pregunta:
-        return jsonify({"error": "Pregunta vacía"}), 400
+        return jsonify({"error": "Pregunta vacia"}), 400
 
     df_pedidos, df_cargas, error = load_data()
     if error:
-        return jsonify({"respuesta": f"⚠️ No puedo cargar los datos: {error}"})
+        return jsonify({"respuesta": f"No puedo cargar los datos: {error}"})
 
     contexto = dataframes_to_context(df_pedidos, df_cargas)
 
-    system_prompt = f"""Eres el asistente de almacén de ICA PRODUKT. Tienes acceso a los datos del día de hoy: el cuadre de pedidos y la hoja de cargas/transporte.
+    system_prompt = f"""Eres el asistente de almacen de ICA PRODUKT. Tienes acceso a los datos del dia de hoy: el cuadre de pedidos y la hoja de cargas/transporte.
 
-Responde siempre en español, de forma clara y directa, como si hablaras con el jefe de almacén. 
-Cuando te pregunten por un pedido concreto, muestra toda la información disponible de ambas hojas: producto, bultos, palets, transportista, matrícula, observaciones, etc.
-Si hay incidencias o anomalías en un pedido (anulaciones, "no encontramos", etc.), indícalas claramente.
+Responde siempre en espanol, de forma clara y directa, como si hablaras con el jefe de almacen. 
+Cuando te pregunten por un pedido concreto, muestra toda la informacion disponible de ambas hojas: producto, bultos, palets, transportista, matricula, observaciones, etc.
+Si hay incidencias o anomalias en un pedido (anulaciones, no encontramos, etc.), indicalas claramente.
 Si no encuentras un pedido, dilo claramente.
 
 DATOS DE HOY:
 {contexto}
 """
 
-    # Construir historial para Gemini
     messages = []
-    for h in historial[-10:]:  # Últimos 10 mensajes
-        messages.append({"role": h["role"], "parts": [h["content"]]})
-    messages.append({"role": "user", "parts": [pregunta]})
+    for h in historial[-10:]:
+        role = "assistant" if h["role"] == "model" else "user"
+        messages.append({"role": role, "content": h["content"]})
+    messages.append({"role": "user", "content": pregunta})
 
     try:
-        chat_session = model.start_chat(history=messages[:-1])
-        response = chat_session.send_message(
-            f"{system_prompt}\n\nPregunta del jefe de almacén: {pregunta}"
+        response = claude.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=1024,
+            system=system_prompt,
+            messages=messages
         )
-        return jsonify({"respuesta": response.text})
+        return jsonify({"respuesta": response.content[0].text})
     except Exception as e:
         return jsonify({"respuesta": f"Error al conectar con la IA: {str(e)}"})
 
