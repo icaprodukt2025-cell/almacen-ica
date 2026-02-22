@@ -22,7 +22,7 @@ SERVICE_ACCOUNT_INFO = json.loads(os.environ.get("GOOGLE_SERVICE_ACCOUNT", "{}")
 SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
 
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel("gemini-1.5-flash")
+model = genai.GenerativeModel("gemini-2.0-flash")
 
 # ── GOOGLE DRIVE ───────────────────────────────────────────────────────────────
 def get_drive_service():
