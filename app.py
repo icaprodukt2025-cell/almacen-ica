@@ -55,8 +55,28 @@ def load_data():
             return None, None, "No se encontraron los archivos en Drive. Asegurate de que 'pedidos.xlsx' y 'cargas.xlsx' estan en la carpeta."
 
         df_pedidos = pd.read_excel(pedidos_buf, engine="openpyxl")
-        df_cargas = pd.read_excel(cargas_buf, engine="openpyxl")
 
+        # Leer cargas filtrando solo columnas utiles y filas de hoy
+        df_cargas_raw = pd.read_excel(cargas_buf, engine="openpyxl", usecols=range(12))
+        
+        # Eliminar columnas completamente vacias
+        df_cargas_raw = df_cargas_raw.dropna(how='all', axis=1)
+        
+        # La primera columna es la fecha - filtrar por hoy
+        fecha_col = df_cargas_raw.columns[0]
+        hoy = pd.Timestamp(datetime.now().date())
+        
+        # Convertir a datetime si no lo es
+        df_cargas_raw[fecha_col] = pd.to_datetime(df_cargas_raw[fecha_col], errors='coerce')
+        
+        # Filtrar filas de hoy
+        df_cargas = df_cargas_raw[df_cargas_raw[fecha_col] == hoy].copy()
+        
+        if df_cargas.empty:
+            # Si no hay datos de hoy, usar todas las filas con fecha valida
+            df_cargas = df_cargas_raw[df_cargas_raw[fecha_col].notna()].copy()
+
+        # Normalizar columna de pedido en ambos dataframes
         for df in [df_pedidos, df_cargas]:
             for col in df.columns:
                 if isinstance(col, str) and ("pedido" in col.lower() or col.lower() in ["nx pedido", "n pedido", "pedido"]):
