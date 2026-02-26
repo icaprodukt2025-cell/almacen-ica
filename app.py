@@ -52,7 +52,7 @@ cargas_buf = download_excel_from_drive(service, “cargas.xlsx”)
 
 ```
     if pedidos_buf is None or cargas_buf is None:
-        return None, None, "No se encontraron los archivos en Drive. Asegurate de que 'pedidos.xlsx' y 'cargas.xlsx' estan en la carpeta."
+        return None, None, "No se encontraron los archivos en Drive."
 
     df_pedidos = pd.read_excel(pedidos_buf, engine="openpyxl")
 
@@ -69,7 +69,7 @@ cargas_buf = download_excel_from_drive(service, “cargas.xlsx”)
 
     for df in [df_pedidos, df_cargas]:
         for col in df.columns:
-            if isinstance(col, str) and ("pedido" in col.lower() or col.lower() in ["nx pedido", "n pedido", "pedido"]):
+            if isinstance(col, str) and ("pedido" in col.lower()):
                 df.rename(columns={col: "Pedido"}, inplace=True)
                 df["Pedido"] = df["Pedido"].astype(str).str.strip()
                 break
@@ -80,8 +80,10 @@ except Exception as e:
 ```
 
 def dataframes_to_context(df_pedidos, df_cargas):
-ctx = f”=== CUADRE DE PEDIDOS ===\n{df_pedidos.to_string(index=False)}\n\n”
-ctx += f”=== HOJA DE CARGAS (TRANSPORTE) ===\n{df_cargas.to_string(index=False)}\n”
+ctx = “=== CUADRE DE PEDIDOS ===\n”
+ctx += df_pedidos.to_string(index=False)
+ctx += “\n\n=== HOJA DE CARGAS (TRANSPORTE) ===\n”
+ctx += df_cargas.to_string(index=False)
 return ctx
 
 @app.route(”/”)
@@ -117,12 +119,12 @@ if error:
 
 contexto = dataframes_to_context(df_pedidos, df_cargas)
 
-system_prompt = f"""Eres el asistente de almacen de ICA PRODUKT. Tienes acceso a los datos del dia de hoy: el cuadre de pedidos y la hoja de cargas/transporte.
+system_prompt = f"""Eres el asistente de almacen de ICA PRODUKT. Tienes acceso a los datos del dia de hoy.
 ```
 
-Responde siempre en espanol, de forma clara y directa, como si hablaras con el jefe de almacen.
-Cuando te pregunten por un pedido concreto, muestra toda la informacion disponible de ambas hojas: producto, bultos, palets, transportista, matricula, observaciones, etc.
-Si hay incidencias o anomalias en un pedido, indicalas claramente.
+Responde siempre en espanol, de forma clara y directa.
+Cuando te pregunten por un pedido concreto, muestra toda la informacion disponible.
+Si hay incidencias o anomalias, indicalas claramente.
 Si no encuentras un pedido, dilo claramente.
 
 DATOS DE HOY:
