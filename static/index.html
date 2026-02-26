@@ -17,290 +17,109 @@
     --blanco: #f0f0f0;
     --amarillo: #FFD600;
     --rojo: #FF3D3D;
+    --azul: #2979FF;
   }
-
   * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    background: var(--negro);
-    color: var(--blanco);
-    font-family: 'Barlow', sans-serif;
-    height: 100dvh;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
+  body { background: var(--negro); color: var(--blanco); font-family: 'Barlow', sans-serif; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
 
   /* HEADER */
-  header {
-    background: var(--gris-oscuro);
-    border-bottom: 2px solid var(--verde);
-    padding: 12px 16px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-shrink: 0;
-  }
-
-  .logo {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-weight: 800;
-    font-size: 1.4rem;
-    letter-spacing: 0.05em;
-    color: var(--blanco);
-  }
+  header { background: var(--gris-oscuro); border-bottom: 2px solid var(--verde); padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+  .logo { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 1.3rem; letter-spacing: 0.05em; }
   .logo span { color: var(--verde); }
-
-  .status-pill {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    background: var(--gris-medio);
-    border: 1px solid var(--gris-borde);
-    border-radius: 20px;
-    padding: 4px 12px;
-    font-size: 0.72rem;
-    font-weight: 500;
-    letter-spacing: 0.05em;
-    color: var(--gris-texto);
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  .status-pill:hover { border-color: var(--verde); color: var(--blanco); }
-  .status-dot {
-    width: 7px; height: 7px;
-    border-radius: 50%;
-    background: var(--gris-texto);
-    transition: background 0.3s;
-  }
+  .status-pill { display: flex; align-items: center; gap: 6px; background: var(--gris-medio); border: 1px solid var(--gris-borde); border-radius: 20px; padding: 4px 12px; font-size: 0.7rem; font-weight: 500; letter-spacing: 0.05em; color: var(--gris-texto); cursor: pointer; }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gris-texto); }
   .status-dot.online { background: var(--verde); box-shadow: 0 0 6px var(--verde); }
   .status-dot.error { background: var(--rojo); }
 
-  /* STATS BAR */
-  .stats-bar {
-    background: var(--gris-medio);
-    border-bottom: 1px solid var(--gris-borde);
-    padding: 8px 16px;
-    display: flex;
-    gap: 20px;
-    flex-shrink: 0;
-    overflow-x: auto;
-  }
-  .stat {
-    display: flex;
-    flex-direction: column;
-    white-space: nowrap;
-  }
-  .stat-label {
-    font-size: 0.62rem;
-    letter-spacing: 0.1em;
-    color: var(--gris-texto);
-    text-transform: uppercase;
-    font-family: 'Barlow Condensed', sans-serif;
-  }
-  .stat-value {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-weight: 700;
-    font-size: 1.1rem;
-    color: var(--verde);
-  }
+  /* TABS */
+  .tabs { display: flex; background: var(--gris-oscuro); border-bottom: 1px solid var(--gris-borde); flex-shrink: 0; }
+  .tab { flex: 1; padding: 10px; text-align: center; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 0.85rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gris-texto); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; }
+  .tab.active { color: var(--verde); border-bottom-color: var(--verde); }
 
-  /* CHAT AREA */
-  .chat-container {
-    flex: 1;
-    overflow-y: auto;
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    scroll-behavior: smooth;
-  }
+  /* STATS */
+  .stats-bar { background: var(--gris-medio); border-bottom: 1px solid var(--gris-borde); padding: 6px 16px; display: flex; gap: 20px; flex-shrink: 0; overflow-x: auto; }
+  .stat { display: flex; flex-direction: column; white-space: nowrap; }
+  .stat-label { font-size: 0.6rem; letter-spacing: 0.1em; color: var(--gris-texto); text-transform: uppercase; font-family: 'Barlow Condensed', sans-serif; }
+  .stat-value { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 1rem; color: var(--verde); }
 
-  .chat-container::-webkit-scrollbar { width: 4px; }
-  .chat-container::-webkit-scrollbar-track { background: transparent; }
+  /* PANEL */
+  .panel { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+  .panel.active { display: flex; }
+
+  /* CHAT */
+  .chat-container { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; scroll-behavior: smooth; }
+  .chat-container::-webkit-scrollbar { width: 3px; }
   .chat-container::-webkit-scrollbar-thumb { background: var(--gris-borde); border-radius: 2px; }
-
-  /* MESSAGES */
-  .msg {
-    display: flex;
-    flex-direction: column;
-    max-width: 88%;
-    animation: fadeUp 0.25s ease;
-  }
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
+  .msg { display: flex; flex-direction: column; max-width: 88%; animation: fadeUp 0.2s ease; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
   .msg.user { align-self: flex-end; align-items: flex-end; }
   .msg.bot { align-self: flex-start; align-items: flex-start; }
-
-  .msg-label {
-    font-size: 0.6rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--gris-texto);
-    margin-bottom: 4px;
-    font-family: 'Barlow Condensed', sans-serif;
-    font-weight: 600;
-  }
-
-  .msg-bubble {
-    padding: 10px 14px;
-    border-radius: 4px;
-    font-size: 0.88rem;
-    line-height: 1.55;
-    white-space: pre-wrap;
-    word-break: break-word;
-  }
-
-  .msg.user .msg-bubble {
-    background: var(--verde);
-    color: #000;
-    font-weight: 500;
-    border-bottom-right-radius: 1px;
-  }
-
-  .msg.bot .msg-bubble {
-    background: var(--gris-medio);
-    border: 1px solid var(--gris-borde);
-    color: var(--blanco);
-    border-bottom-left-radius: 1px;
-  }
-
-  .msg.bot .msg-bubble.error {
-    border-color: var(--rojo);
-    color: var(--rojo);
-  }
-
-  /* TYPING */
-  .typing-bubble {
-    background: var(--gris-medio);
-    border: 1px solid var(--gris-borde);
-    padding: 12px 16px;
-    border-radius: 4px;
-    display: flex;
-    gap: 5px;
-    align-items: center;
-  }
-  .typing-dot {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--verde);
-    animation: bounce 1.2s infinite;
-  }
+  .msg-label { font-size: 0.58rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gris-texto); margin-bottom: 3px; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; }
+  .msg-bubble { padding: 9px 13px; border-radius: 4px; font-size: 0.86rem; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+  .msg.user .msg-bubble { background: var(--verde); color: #000; font-weight: 500; }
+  .msg.bot .msg-bubble { background: var(--gris-medio); border: 1px solid var(--gris-borde); }
+  .msg.bot .msg-bubble.error { border-color: var(--rojo); color: var(--rojo); }
+  .typing-bubble { background: var(--gris-medio); border: 1px solid var(--gris-borde); padding: 10px 14px; border-radius: 4px; display: flex; gap: 5px; align-items: center; }
+  .typing-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--verde); animation: bounce 1.2s infinite; }
   .typing-dot:nth-child(2) { animation-delay: 0.2s; }
   .typing-dot:nth-child(3) { animation-delay: 0.4s; }
-  @keyframes bounce {
-    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-    30% { transform: translateY(-5px); opacity: 1; }
-  }
+  @keyframes bounce { 0%,60%,100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-5px); opacity: 1; } }
 
   /* SUGGESTIONS */
-  .suggestions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 4px;
-  }
-  .suggestion-btn {
-    background: transparent;
-    border: 1px solid var(--gris-borde);
-    color: var(--gris-texto);
-    padding: 5px 10px;
-    border-radius: 3px;
-    font-size: 0.75rem;
-    font-family: 'Barlow', sans-serif;
-    cursor: pointer;
-    transition: all 0.15s;
-    text-align: left;
-  }
-  .suggestion-btn:hover {
-    border-color: var(--verde);
-    color: var(--verde);
-    background: rgba(0,200,83,0.05);
-  }
+  .suggestions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .suggestion-btn { background: transparent; border: 1px solid var(--gris-borde); color: var(--gris-texto); padding: 5px 10px; border-radius: 3px; font-size: 0.73rem; font-family: 'Barlow', sans-serif; cursor: pointer; transition: all 0.15s; }
+  .suggestion-btn:hover { border-color: var(--verde); color: var(--verde); }
 
-  /* INPUT AREA */
-  .input-area {
-    padding: 12px 16px;
-    background: var(--gris-oscuro);
-    border-top: 1px solid var(--gris-borde);
-    display: flex;
-    gap: 10px;
-    align-items: flex-end;
-    flex-shrink: 0;
-  }
-
-  textarea {
-    flex: 1;
-    background: var(--gris-medio);
-    border: 1px solid var(--gris-borde);
-    color: var(--blanco);
-    font-family: 'Barlow', sans-serif;
-    font-size: 0.9rem;
-    padding: 10px 14px;
-    border-radius: 4px;
-    resize: none;
-    outline: none;
-    max-height: 120px;
-    min-height: 44px;
-    line-height: 1.4;
-    transition: border-color 0.2s;
-  }
+  /* INPUT */
+  .input-area { padding: 10px 14px; background: var(--gris-oscuro); border-top: 1px solid var(--gris-borde); display: flex; gap: 8px; align-items: flex-end; flex-shrink: 0; }
+  textarea { flex: 1; background: var(--gris-medio); border: 1px solid var(--gris-borde); color: var(--blanco); font-family: 'Barlow', sans-serif; font-size: 0.88rem; padding: 9px 12px; border-radius: 4px; resize: none; outline: none; max-height: 100px; min-height: 42px; line-height: 1.4; transition: border-color 0.2s; }
   textarea:focus { border-color: var(--verde); }
   textarea::placeholder { color: var(--gris-texto); }
-
-  .send-btn {
-    background: var(--verde);
-    border: none;
-    border-radius: 4px;
-    width: 44px;
-    height: 44px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    transition: background 0.2s, transform 0.1s;
-  }
+  .send-btn { background: var(--verde); border: none; border-radius: 4px; width: 42px; height: 42px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background 0.2s; }
   .send-btn:hover { background: var(--verde-dim); }
-  .send-btn:active { transform: scale(0.95); }
   .send-btn:disabled { background: var(--gris-borde); cursor: not-allowed; }
   .send-btn svg { fill: #000; }
 
   /* WELCOME */
-  .welcome {
-    text-align: center;
-    padding: 30px 20px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-  }
-  .welcome-icon {
-    font-size: 2.5rem;
-    margin-bottom: 4px;
-  }
-  .welcome h2 {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-weight: 700;
-    font-size: 1.3rem;
-    letter-spacing: 0.05em;
-  }
-  .welcome p {
-    font-size: 0.82rem;
-    color: var(--gris-texto);
-    max-width: 280px;
-    line-height: 1.5;
-  }
+  .welcome { text-align: center; padding: 24px 16px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .welcome-icon { font-size: 2.2rem; margin-bottom: 2px; }
+  .welcome h2 { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 1.2rem; letter-spacing: 0.05em; }
+  .welcome p { font-size: 0.8rem; color: var(--gris-texto); max-width: 260px; line-height: 1.5; }
+  .divider { height: 1px; background: var(--gris-borde); margin: 6px 0; width: 100%; }
 
-  .divider {
-    height: 1px;
-    background: var(--gris-borde);
-    margin: 8px 0;
-    width: 100%;
-  }
+  /* PLANIFICADOR */
+  .planner { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+  .planner::-webkit-scrollbar { width: 3px; }
+  .planner::-webkit-scrollbar-thumb { background: var(--gris-borde); border-radius: 2px; }
+  .planner-section { background: var(--gris-medio); border: 1px solid var(--gris-borde); border-radius: 4px; padding: 12px; }
+  .planner-title { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 0.9rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--verde); margin-bottom: 10px; }
+  .day-row { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+  .day-label { font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 0.8rem; letter-spacing: 0.05em; color: var(--blanco); text-transform: uppercase; }
+  .product-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .product-input { background: var(--negro); border: 1px solid var(--gris-borde); color: var(--blanco); font-family: 'Barlow', sans-serif; font-size: 0.78rem; padding: 5px 8px; border-radius: 3px; outline: none; transition: border-color 0.2s; }
+  .product-input:focus { border-color: var(--verde); }
+  .product-input.wide { flex: 1; min-width: 120px; }
+  .product-input.narrow { width: 70px; }
+  .add-btn { background: transparent; border: 1px dashed var(--gris-borde); color: var(--gris-texto); padding: 5px 10px; border-radius: 3px; font-size: 0.73rem; cursor: pointer; transition: all 0.15s; font-family: 'Barlow', sans-serif; }
+  .add-btn:hover { border-color: var(--verde); color: var(--verde); }
+  .remove-btn { background: transparent; border: none; color: var(--gris-texto); font-size: 1rem; cursor: pointer; padding: 2px 4px; }
+  .remove-btn:hover { color: var(--rojo); }
+  .calc-btn { background: var(--verde); border: none; border-radius: 4px; color: #000; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 0.9rem; letter-spacing: 0.08em; padding: 10px 20px; cursor: pointer; width: 100%; transition: background 0.2s; }
+  .calc-btn:hover { background: var(--verde-dim); }
+  .calc-btn:disabled { background: var(--gris-borde); cursor: not-allowed; color: var(--gris-texto); }
+
+  /* RESULTADO */
+  .result-card { background: var(--negro); border: 1px solid var(--gris-borde); border-radius: 4px; padding: 12px; }
+  .result-day { margin-bottom: 14px; }
+  .result-day-title { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 1rem; color: var(--amarillo); letter-spacing: 0.05em; margin-bottom: 6px; text-transform: uppercase; }
+  .result-item { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--gris-borde); font-size: 0.8rem; }
+  .result-item:last-child { border-bottom: none; }
+  .result-label { color: var(--gris-texto); }
+  .result-value { font-weight: 600; color: var(--blanco); }
+  .result-value.highlight { color: var(--verde); font-size: 1rem; }
+  .result-summary { background: var(--gris-medio); border: 1px solid var(--verde); border-radius: 4px; padding: 10px 12px; margin-top: 10px; }
+  .result-summary-title { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 0.85rem; color: var(--verde); letter-spacing: 0.08em; margin-bottom: 6px; }
+  .horario-badge { display: inline-block; background: var(--verde); color: #000; font-weight: 700; font-family: 'Barlow Condensed', sans-serif; font-size: 0.9rem; padding: 3px 10px; border-radius: 3px; margin-right: 6px; }
 </style>
 </head>
 <body>
@@ -313,185 +132,307 @@
   </div>
 </header>
 
-<div class="stats-bar" id="statsBar" style="display:none">
-  <div class="stat">
-    <span class="stat-label">Pedidos hoy</span>
-    <span class="stat-value" id="statPedidos">—</span>
-  </div>
-  <div class="stat">
-    <span class="stat-label">Líneas carga</span>
-    <span class="stat-value" id="statCargas">—</span>
-  </div>
-  <div class="stat">
-    <span class="stat-label">Actualizado</span>
-    <span class="stat-value" id="statFecha" style="font-size:0.85rem;color:var(--gris-texto)">—</span>
-  </div>
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('chat')">📦 Pedidos</div>
+  <div class="tab" onclick="switchTab('planner')">📅 Planificador</div>
 </div>
 
-<div class="chat-container" id="chat">
-  <div class="welcome" id="welcome">
-    <div class="welcome-icon">📦</div>
-    <h2>ASISTENTE DE ALMACÉN</h2>
-    <p>Pregúntame lo que necesites sobre los pedidos y cargas del día</p>
-    <div class="divider"></div>
-    <div class="suggestions">
-      <button class="suggestion-btn" onclick="useSuggestion(this)">¿Qué pedidos tenemos hoy?</button>
-      <button class="suggestion-btn" onclick="useSuggestion(this)">¿Hay alguna incidencia?</button>
-      <button class="suggestion-btn" onclick="useSuggestion(this)">¿Qué transportistas salen hoy?</button>
-      <button class="suggestion-btn" onclick="useSuggestion(this)">Dame el resumen del día</button>
+<div class="stats-bar" id="statsBar" style="display:none">
+  <div class="stat"><span class="stat-label">Pedidos hoy</span><span class="stat-value" id="statPedidos">—</span></div>
+  <div class="stat"><span class="stat-label">Líneas carga</span><span class="stat-value" id="statCargas">—</span></div>
+  <div class="stat"><span class="stat-label">Actualizado</span><span class="stat-value" id="statFecha" style="font-size:0.78rem;color:var(--gris-texto)">—</span></div>
+</div>
+
+<!-- PANEL CHAT -->
+<div class="panel active" id="panel-chat">
+  <div class="chat-container" id="chat">
+    <div class="welcome" id="welcome">
+      <div class="welcome-icon">📦</div>
+      <h2>ASISTENTE DE ALMACÉN</h2>
+      <p>Pregúntame lo que necesites sobre los pedidos y cargas del día</p>
+      <div class="divider"></div>
+      <div class="suggestions">
+        <button class="suggestion-btn" onclick="useSuggestion(this)">¿Qué pedidos tenemos hoy?</button>
+        <button class="suggestion-btn" onclick="useSuggestion(this)">¿Hay alguna incidencia?</button>
+        <button class="suggestion-btn" onclick="useSuggestion(this)">¿Qué transportistas salen hoy?</button>
+        <button class="suggestion-btn" onclick="useSuggestion(this)">Dame el resumen del día</button>
+      </div>
     </div>
   </div>
+  <div class="input-area">
+    <textarea id="input" placeholder="Pregunta por un pedido, transportista, bultos..." rows="1" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+    <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+      <svg width="18" height="18" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+    </button>
+  </div>
 </div>
 
-<div class="input-area">
-  <textarea 
-    id="input" 
-    placeholder="Pregunta por un pedido, transportista, bultos..." 
-    rows="1"
-    onkeydown="handleKey(event)"
-    oninput="autoResize(this)"
-  ></textarea>
-  <button class="send-btn" id="sendBtn" onclick="sendMessage()">
-    <svg width="18" height="18" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-  </button>
+<!-- PANEL PLANIFICADOR -->
+<div class="panel" id="panel-planner">
+  <div class="planner" id="planner">
+    <div class="planner-section">
+      <div class="planner-title">📅 Planificación semanal</div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
+        <button class="calc-btn" id="loadBtn" onclick="cargarDelSheet()" style="flex:1;background:var(--azul);font-size:0.78rem;padding:8px">🔄 CARGAR PEDIDOS DEL SHEET</button>
+        <button class="calc-btn" id="calcBtn" onclick="calcularSemana()" style="flex:1;font-size:0.78rem;padding:8px">CALCULAR</button>
+      </div>
+      <div id="load-status" style="font-size:0.72rem;color:var(--gris-texto);margin-bottom:8px;text-align:center"></div>
+      <div id="days-container"></div>
+    </div>
+    <div id="resultado" style="display:none"></div>
+  </div>
 </div>
 
 <script>
-  const chat = document.getElementById('chat');
-  const input = document.getElementById('input');
-  const sendBtn = document.getElementById('sendBtn');
-  let historial = [];
-  let isLoading = false;
+const ESTANDARES = {"PEPINO FRANCES 3 KG": {"min_por_bulto": 0.385, "personas_media": 10.5, "registros": 2}, "PEPINO ALMERIA": {"min_por_bulto": 0.379, "personas_media": 11.8, "registros": 200}, "PALERMO 10 X 200": {"min_por_bulto": 0.655, "personas_media": 11.0, "registros": 3}, "PALERMO ROJO 10 X 500": {"min_por_bulto": 0.919, "personas_media": 13.2, "registros": 163}, "PICANTE 3 KG": {"min_por_bulto": 0.644, "personas_media": 9.8, "registros": 173}, "PALERMO 2,5 KG": {"min_por_bulto": 0.31, "personas_media": 13.8, "registros": 83}, "PALERMO 8 X 180": {"min_por_bulto": 0.483, "personas_media": 11.1, "registros": 9}, "PALERMO 6 X 180": {"min_por_bulto": 0.484, "personas_media": 13.1, "registros": 55}, "CALABACIN 8 X 500": {"min_por_bulto": 0.754, "personas_media": 12.2, "registros": 80}, "CALABACIN 6 KG": {"min_por_bulto": 0.401, "personas_media": 10.3, "registros": 29}, "CALIFORNIA ROJO 5 KG": {"min_por_bulto": 0.591, "personas_media": 13.3, "registros": 165}, "PEPINO SNACK 12 X 200": {"min_por_bulto": 0.503, "personas_media": 10.4, "registros": 70}, "PEPINO MINI 12 X 280": {"min_por_bulto": 0.391, "personas_media": 15.1, "registros": 251}, "CALIFORNIA 10 X 400": {"min_por_bulto": 0.647, "personas_media": 14.7, "registros": 132}, "CALABACIN 5 KG": {"min_por_bulto": 0.488, "personas_media": 10.4, "registros": 60}, "PALERMO 12 X 350": {"min_por_bulto": 0.996, "personas_media": 12.5, "registros": 289}, "PALERMO 4 KG": {"min_por_bulto": 0.479, "personas_media": 12.0, "registros": 62}, "PEPINO FRANCES": {"min_por_bulto": 0.441, "personas_media": 13.0, "registros": 30}, "PEPINO FRANCES 6 KG": {"min_por_bulto": 0.399, "personas_media": 12.9, "registros": 27}, "CALIFORNIA AMARILLO": {"min_por_bulto": 0.337, "personas_media": 13.0, "registros": 80}, "CALIFORNIA 6 X 400": {"min_por_bulto": 0.391, "personas_media": 13.8, "registros": 83}, "CALIFORNIA VERDE": {"min_por_bulto": 0.502, "personas_media": 14.9, "registros": 7}, "PALERMO 6 X 250": {"min_por_bulto": 0.525, "personas_media": 11.6, "registros": 23}, "CALIFORNIA AMARILLO 5 KG": {"min_por_bulto": 0.518, "personas_media": 11.2, "registros": 14}, "BERENJENA 5 KG": {"min_por_bulto": 0.462, "personas_media": 11.7, "registros": 11}, "PICANTE 1 KG": {"min_por_bulto": 0.602, "personas_media": 9.6, "registros": 5}, "CALIFORNIA 2,5 KG": {"min_por_bulto": 0.703, "personas_media": 13.2, "registros": 4}, "PICANTE ROJO 10 X 100": {"min_por_bulto": 0.61, "personas_media": 12.1, "registros": 30}, "PICANTE 2 KG": {"min_por_bulto": 0.596, "personas_media": 11.0, "registros": 4}, "PALERMO 14 X 250": {"min_por_bulto": 0.634, "personas_media": 13.4, "registros": 7}, "CALIFORNIA MALLA 9 X 500": {"min_por_bulto": 1.074, "personas_media": 6.8, "registros": 6}, "PEPINO MINI 5 KG": {"min_por_bulto": 0.302, "personas_media": 13.7, "registros": 3}, "PEPINO MINI 9 KG": {"min_por_bulto": 0.521, "personas_media": 13.5, "registros": 8}, "CALIFORNIA 8 X 180": {"min_por_bulto": 0.483, "personas_media": 14.3, "registros": 9}, "CALIFORNIA 6 X 2 PZS": {"min_por_bulto": 0.33, "personas_media": 19.0, "registros": 2}, "CALIFORNIA 3 KG": {"min_por_bulto": 0.325, "personas_media": 13.6, "registros": 12}, "PALERMO 3 KG": {"min_por_bulto": 0.29, "personas_media": 11.0, "registros": 4}, "PEPINO MINI 8 X 280": {"min_por_bulto": 0.268, "personas_media": 13.7, "registros": 3}, "CALABACIN 7 KG": {"min_por_bulto": 0.567, "personas_media": 10.4, "registros": 28}, "JUDIA STRIKE 10 X 500": {"min_por_bulto": 0.862, "personas_media": 10.5, "registros": 6}, "CALABACIN FAJA": {"min_por_bulto": 0.35, "personas_media": 15.0, "registros": 2}, "JUDIA HELDA 10 X 500": {"min_por_bulto": 0.185, "personas_media": 13.8, "registros": 4}, "PEPINO SNACK 10 X 250": {"min_por_bulto": 0.523, "personas_media": 11.3, "registros": 3}, "PICANTE 10 X 500": {"min_por_bulto": 1.356, "personas_media": 9.8, "registros": 4}, "PEPINO MINI 10 X 280": {"min_por_bulto": 0.294, "personas_media": 14.2, "registros": 5}, "TOMATE 5 KG": {"min_por_bulto": 0.84, "personas_media": 12.0, "registros": 16}, "JUDIA STRIKE": {"min_por_bulto": 0.842, "personas_media": 10.3, "registros": 7}, "PEPINO MALLA": {"min_por_bulto": 1.152, "personas_media": 7.7, "registros": 6}, "JUDIA HELDA": {"min_por_bulto": 0.536, "personas_media": 9.5, "registros": 4}, "CONICO BLANCO 6 X 500": {"min_por_bulto": 0.446, "personas_media": 13.6, "registros": 25}, "JUDIA 10 X 500": {"min_por_bulto": 0.398, "personas_media": 14.2, "registros": 9}, "CALIFORNIA AMARILLO 5KG": {"min_por_bulto": 0.471, "personas_media": 14.8, "registros": 4}, "PICANTE ROJO 10X100": {"min_por_bulto": 0.578, "personas_media": 12.7, "registros": 86}, "PALERMO ROJO 10X500": {"min_por_bulto": 0.851, "personas_media": 11.2, "registros": 787}, "CALIFORNIA ROJO 5KG": {"min_por_bulto": 0.346, "personas_media": 14.2, "registros": 129}, "CONICO BLANCO 10 X 500": {"min_por_bulto": 0.242, "personas_media": 9.5, "registros": 2}, "PICANTE 3KG": {"min_por_bulto": 0.526, "personas_media": 13.6, "registros": 24}, "PALERMO 6 X 190": {"min_por_bulto": 0.274, "personas_media": 14.0, "registros": 2}, "PALERMO 6 X 500": {"min_por_bulto": 0.152, "personas_media": 15.8, "registros": 5}, "CALIFORNIA 3KG": {"min_por_bulto": 0.2, "personas_media": 14.0, "registros": 2}, "PEPINO FRANCES 6KG": {"min_por_bulto": 0.391, "personas_media": 15.1, "registros": 7}, "PEPINO FRANCES 3KG": {"min_por_bulto": 0.164, "personas_media": 16.0, "registros": 2}, "PALERMO SEGUNDA": {"min_por_bulto": 0.253, "personas_media": 16.4, "registros": 7}, "CALIFORNIA 6 X 500": {"min_por_bulto": 0.188, "personas_media": 16.0, "registros": 2}, "CALIFORNIA 9 X 500": {"min_por_bulto": 0.555, "personas_media": 15.4, "registros": 5}, "PEPINO ALMERIA 12 PZS": {"min_por_bulto": 0.217, "personas_media": 13.3, "registros": 39}, "PALERMO GRANEL": {"min_por_bulto": 0.292, "personas_media": 11.0, "registros": 3}, "PALERMO ETIQUETADO 10X500": {"min_por_bulto": 0.157, "personas_media": 13.0, "registros": 7}, "PEPINO ALMERIA 22 PZS": {"min_por_bulto": 0.546, "personas_media": 13.0, "registros": 6}, "PALERMO ROJO 2,5KG": {"min_por_bulto": 0.228, "personas_media": 14.6, "registros": 10}, "TOMATE RAMA 4X500": {"min_por_bulto": 0.735, "personas_media": 14.0, "registros": 6}, "TOMATE RAMA 10X500": {"min_por_bulto": 0.712, "personas_media": 12.8, "registros": 50}, "PICANTE": {"min_por_bulto": 0.719, "personas_media": 14.8, "registros": 4}, "PEPINO ALMERIA 12 PZ": {"min_por_bulto": 0.281, "personas_media": 10.2, "registros": 671}, "TOMATE SUELTO": {"min_por_bulto": 0.454, "personas_media": 14.0, "registros": 2}, "TOMATE CHERRY": {"min_por_bulto": 0.799, "personas_media": 12.1, "registros": 13}, "PALERMO ROJO": {"min_por_bulto": 0.231, "personas_media": 10.5, "registros": 16}, "PEPINO PELICAN": {"min_por_bulto": 0.233, "personas_media": 11.0, "registros": 3}, "TOMATE COCKTAIL 12X300": {"min_por_bulto": 0.91, "personas_media": 10.8, "registros": 36}, "TOMATE PERA 6 KG": {"min_por_bulto": 0.379, "personas_media": 12.0, "registros": 3}, "PALERMO MIX 6X200": {"min_por_bulto": 0.365, "personas_media": 11.1, "registros": 12}, "PALERMO MIX 10X200": {"min_por_bulto": 0.652, "personas_media": 8.6, "registros": 9}, "PICANTE 8X150G": {"min_por_bulto": 0.568, "personas_media": 10.1, "registros": 52}, "PALERMO MIX 10X500": {"min_por_bulto": 1.044, "personas_media": 11.2, "registros": 9}, "PALERMO MIX 10X200G": {"min_por_bulto": 0.687, "personas_media": 8.2, "registros": 5}, "PALERMO MIX 6X200G": {"min_por_bulto": 0.455, "personas_media": 8.7, "registros": 7}, "MELON GALIA": {"min_por_bulto": 0.686, "personas_media": 6.7, "registros": 3}, "CALABACIN 10-2PZ": {"min_por_bulto": 0.473, "personas_media": 13.0, "registros": 15}, "PALERMO ROJO 10X250": {"min_por_bulto": 0.544, "personas_media": 10.9, "registros": 18}, "PALERMO 4 KG ECO": {"min_por_bulto": 0.273, "personas_media": 13.0, "registros": 2}, "PALERMO 6X200": {"min_por_bulto": 0.288, "personas_media": 9.4, "registros": 13}, "PALERMO 10X200": {"min_por_bulto": 0.605, "personas_media": 10.8, "registros": 76}, "PALERMO 6X250G": {"min_por_bulto": 0.406, "personas_media": 10.3, "registros": 35}, "MELON P. SAPO": {"min_por_bulto": 0.462, "personas_media": 5.1, "registros": 10}, "PALERMO MIX 12X350": {"min_por_bulto": 0.808, "personas_media": 11.0, "registros": 419}, "PALERMO 6X180G": {"min_por_bulto": 0.338, "personas_media": 10.8, "registros": 10}, "HABANERO 2 KG": {"min_por_bulto": 0.28, "personas_media": 8.8, "registros": 9}, "PALERMO BIO 10X200G": {"min_por_bulto": 0.714, "personas_media": 10.2, "registros": 5}, "PALERMO BIO": {"min_por_bulto": 0.45, "personas_media": 9.5, "registros": 2}, "PALERMO MIX 8X300": {"min_por_bulto": 0.765, "personas_media": 10.8, "registros": 29}, "PALERMO MIX 10X3PZ": {"min_por_bulto": 1.037, "personas_media": 8.9, "registros": 25}, "CORNO BLANCO 6X500G": {"min_por_bulto": 0.426, "personas_media": 10.0, "registros": 4}, "PALERMO BIO 10X200": {"min_por_bulto": 0.651, "personas_media": 10.2, "registros": 94}, "PEPINO MINI 12X280": {"min_por_bulto": 0.717, "personas_media": 6.8, "registros": 72}, "PEPINO ALMERIA 16 PZ": {"min_por_bulto": 0.134, "personas_media": 12.0, "registros": 2}, "PICANTE MIX 10X50": {"min_por_bulto": 0.46, "personas_media": 8.7, "registros": 97}, "PEPINO SNACK 10X250": {"min_por_bulto": 0.513, "personas_media": 7.4, "registros": 7}, "CALIFORNIA 5 KG": {"min_por_bulto": 0.378, "personas_media": 10.8, "registros": 4}, "PEPINO MINI 8X3PZ": {"min_por_bulto": 0.456, "personas_media": 7.1, "registros": 92}, "HABANERO 3 KG": {"min_por_bulto": 0.305, "personas_media": 10.5, "registros": 4}, "PALERMO 8X300G": {"min_por_bulto": 0.589, "personas_media": 11.8, "registros": 4}, "CALABACIN": {"min_por_bulto": 0.575, "personas_media": 9.2, "registros": 10}, "BIO CALIFORNIA 6X2PZ": {"min_por_bulto": 0.781, "personas_media": 8.4, "registros": 8}, "PIMIENTO 8 PZAS": {"min_por_bulto": 0.351, "personas_media": 11.1, "registros": 42}, "CW ROJO 5 KG": {"min_por_bulto": 0.73, "personas_media": 10.2, "registros": 4}, "PALERMO 12X220": {"min_por_bulto": 0.595, "personas_media": 12.3, "registros": 3}, "HABANERO 4KG": {"min_por_bulto": 0.242, "personas_media": 8.7, "registros": 7}, "CALIFORNIA BICO 6X400G": {"min_por_bulto": 0.571, "personas_media": 8.2, "registros": 8}, "PALERMO ROJO 4 KG": {"min_por_bulto": 0.179, "personas_media": 12.5, "registros": 2}, "CALABACIN 8X500": {"min_por_bulto": 0.445, "personas_media": 11.4, "registros": 9}, "PADRON 2 KG": {"min_por_bulto": 0.133, "personas_media": 10.6, "registros": 5}, "PALERMO MIX 10X360": {"min_por_bulto": 0.933, "personas_media": 8.8, "registros": 18}, "PALERMO ROJO 3 KG": {"min_por_bulto": 0.271, "personas_media": 12.5, "registros": 2}, "PICANTE 3 KG HABANERO": {"min_por_bulto": 0.231, "personas_media": 7.0, "registros": 4}, "PALERMO 4K": {"min_por_bulto": 0.575, "personas_media": 10.4, "registros": 5}, "BERENJENA 5K FLOW": {"min_por_bulto": 0.641, "personas_media": 6.2, "registros": 9}, "PEPINO MINI 8X280": {"min_por_bulto": 0.431, "personas_media": 6.0, "registros": 7}, "CALABACIN 10X2": {"min_por_bulto": 0.808, "personas_media": 13.0, "registros": 6}, "PALERMO MIX 10X360 FLOW": {"min_por_bulto": 0.887, "personas_media": 6.0, "registros": 4}, "PEPINO 12X300": {"min_por_bulto": 0.54, "personas_media": 8.2, "registros": 4}, "BERENJENA 10X300": {"min_por_bulto": 0.156, "personas_media": 17.5, "registros": 2}};
 
-  // ── STATUS CHECK ────────────────────────────────────────────────────────────
-  async function checkStatus() {
-    const dot = document.getElementById('statusDot');
-    const text = document.getElementById('statusText');
-    try {
-      const res = await fetch('/api/status');
-      const data = await res.json();
-      if (data.ok) {
-        dot.className = 'status-dot online';
-        text.textContent = 'Datos cargados';
-        document.getElementById('statsBar').style.display = 'flex';
-        document.getElementById('statPedidos').textContent = data.pedidos;
-        document.getElementById('statCargas').textContent = data.lineas_carga;
-        document.getElementById('statFecha').textContent = data.fecha;
-      } else {
-        dot.className = 'status-dot error';
-        text.textContent = 'Sin datos';
-        addMessage('bot', '⚠️ ' + data.error, true);
-      }
-    } catch(e) {
+const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
+const HORA_INICIO = 6; // hora de inicio jornada
+
+// ── CHAT ──────────────────────────────────────────────────────────────────────
+const chat = document.getElementById('chat');
+const input = document.getElementById('input');
+const sendBtn = document.getElementById('sendBtn');
+let historial = [];
+let isLoading = false;
+
+async function checkStatus() {
+  const dot = document.getElementById('statusDot');
+  const txt = document.getElementById('statusText');
+  try {
+    const res = await fetch('/api/status');
+    const data = await res.json();
+    if (data.ok) {
+      dot.className = 'status-dot online';
+      txt.textContent = 'Datos cargados';
+      document.getElementById('statsBar').style.display = 'flex';
+      document.getElementById('statPedidos').textContent = data.pedidos;
+      document.getElementById('statCargas').textContent = data.lineas_carga;
+      document.getElementById('statFecha').textContent = data.fecha;
+    } else {
       dot.className = 'status-dot error';
-      text.textContent = 'Sin conexión';
+      txt.textContent = 'Sin datos';
     }
+  } catch(e) {
+    dot.className = 'status-dot error';
+    txt.textContent = 'Sin conexión';
   }
+}
 
-  // ── MESSAGES ────────────────────────────────────────────────────────────────
-  function addMessage(role, content, isError = false) {
-    const welcome = document.getElementById('welcome');
-    if (welcome) welcome.remove();
+function addMessage(role, content, isError=false) {
+  const w = document.getElementById('welcome');
+  if (w) w.remove();
+  const msg = document.createElement('div');
+  msg.className = `msg ${role}`;
+  const lbl = document.createElement('div');
+  lbl.className = 'msg-label';
+  lbl.textContent = role === 'user' ? 'Tú' : 'Asistente';
+  const bub = document.createElement('div');
+  bub.className = `msg-bubble${isError ? ' error' : ''}`;
+  bub.textContent = content;
+  msg.appendChild(lbl);
+  msg.appendChild(bub);
+  chat.appendChild(msg);
+  chat.scrollTop = chat.scrollHeight;
+}
 
-    const msg = document.createElement('div');
-    msg.className = `msg ${role}`;
+function showTyping() {
+  const w = document.createElement('div');
+  w.className = 'msg bot'; w.id = 'typing';
+  const lbl = document.createElement('div');
+  lbl.className = 'msg-label'; lbl.textContent = 'Asistente';
+  const b = document.createElement('div');
+  b.className = 'typing-bubble';
+  b.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+  w.appendChild(lbl); w.appendChild(b);
+  chat.appendChild(w);
+  chat.scrollTop = chat.scrollHeight;
+}
 
-    const label = document.createElement('div');
-    label.className = 'msg-label';
-    label.textContent = role === 'user' ? 'Tú' : 'Asistente';
+function removeTyping() { const t = document.getElementById('typing'); if (t) t.remove(); }
 
-    const bubble = document.createElement('div');
-    bubble.className = `msg-bubble${isError ? ' error' : ''}`;
-    bubble.textContent = content;
-
-    msg.appendChild(label);
-    msg.appendChild(bubble);
-    chat.appendChild(msg);
-    chat.scrollTop = chat.scrollHeight;
-    return msg;
+async function sendMessage() {
+  const text = input.value.trim();
+  if (!text || isLoading) return;
+  isLoading = true; sendBtn.disabled = true;
+  input.value = ''; autoResize(input);
+  addMessage('user', text);
+  historial.push({ role: 'user', content: text });
+  showTyping();
+  try {
+    const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pregunta: text, historial }) });
+    const data = await res.json();
+    removeTyping();
+    addMessage('bot', data.respuesta || 'Sin respuesta');
+    historial.push({ role: 'model', content: data.respuesta });
+  } catch(e) {
+    removeTyping();
+    addMessage('bot', 'Error de conexión. Comprueba que la app está activa.', true);
   }
+  isLoading = false; sendBtn.disabled = false; input.focus();
+}
 
-  function showTyping() {
-    const wrap = document.createElement('div');
-    wrap.className = 'msg bot';
-    wrap.id = 'typing';
+function handleKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
+function autoResize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 100) + 'px'; }
+function useSuggestion(btn) { input.value = btn.textContent; autoResize(input); sendMessage(); }
 
-    const label = document.createElement('div');
-    label.className = 'msg-label';
-    label.textContent = 'Asistente';
+// ── TABS ──────────────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', (i===0 && tab==='chat') || (i===1 && tab==='planner')));
+  document.getElementById('panel-chat').classList.toggle('active', tab==='chat');
+  document.getElementById('panel-planner').classList.toggle('active', tab==='planner');
+}
 
-    const bubble = document.createElement('div');
-    bubble.className = 'typing-bubble';
-    bubble.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+// ── PLANIFICADOR ──────────────────────────────────────────────────────────────
+async function cargarDelSheet() {
+  const btn = document.getElementById('loadBtn');
+  const status = document.getElementById('load-status');
+  btn.disabled = true;
+  btn.textContent = 'Cargando...';
+  status.textContent = '';
 
-    wrap.appendChild(label);
-    wrap.appendChild(bubble);
-    chat.appendChild(wrap);
-    chat.scrollTop = chat.scrollHeight;
-  }
+  try {
+    const res = await fetch('/api/planificacion');
+    const data = await res.json();
 
-  function removeTyping() {
-    const t = document.getElementById('typing');
-    if (t) t.remove();
-  }
+    if (data.error) {
+      status.style.color = 'var(--rojo)';
+      status.textContent = 'Error: ' + data.error;
+      return;
+    }
 
-  // ── SEND ────────────────────────────────────────────────────────────────────
-  async function sendMessage() {
-    const text = input.value.trim();
-    if (!text || isLoading) return;
+    const dias = data.dias;
+    const fechas = Object.keys(dias).sort();
 
-    isLoading = true;
-    sendBtn.disabled = true;
-    input.value = '';
-    autoResize(input);
+    if (fechas.length === 0) {
+      status.style.color = 'var(--amarillo)';
+      status.textContent = 'No hay pedidos con fecha de salida en el Sheet.';
+      return;
+    }
 
-    addMessage('user', text);
-    historial.push({ role: 'user', content: text });
+    // Limpiar contenedor y reconstruir con datos reales
+    const container = document.getElementById('days-container');
+    container.innerHTML = '';
 
-    showTyping();
+    // Agrupar fechas proximas (proximos 7 dias)
+    const hoy = new Date();
+    const en7dias = new Date(hoy); en7dias.setDate(hoy.getDate() + 7);
 
-    try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pregunta: text, historial })
+    let diasMostrados = 0;
+    fechas.forEach(fecha => {
+      // Intentar parsear la fecha dd/mm/yyyy
+      const partes = fecha.split('/');
+      let fechaObj = null;
+      if (partes.length === 3) {
+        fechaObj = new Date(partes[2], partes[1]-1, partes[0]);
+      }
+
+      const pedidos = dias[fecha];
+      const div = document.createElement('div');
+      div.className = 'day-row';
+
+      // Nombre del dia de la semana
+      let nombreDia = fecha;
+      if (fechaObj) {
+        const dias_semana = ['Dom','Lun','Mar','Mie','Jue','Vie','Sab'];
+        nombreDia = dias_semana[fechaObj.getDay()] + ' ' + fecha;
+      }
+
+      let pedidosHtml = '';
+      let totalBultos = 0;
+      pedidos.forEach(p => {
+        const b = parseInt(p.bultos) || 0;
+        totalBultos += b;
+        pedidosHtml += `<div class="product-row" style="margin-bottom:4px">
+          <input class="product-input wide" type="text" value="${p.producto || ''}" list="productos-list" placeholder="Producto">
+          <input class="product-input narrow" type="number" value="${b || ''}" placeholder="Bultos" min="1">
+          <span style="font-size:0.65rem;color:var(--gris-texto);white-space:nowrap">Ped.${p.pedido}</span>
+          <button class="remove-btn" onclick="this.parentElement.remove()">×</button>
+        </div>`;
       });
-      const data = await res.json();
-      removeTyping();
-      const respuesta = data.respuesta || 'Sin respuesta';
-      addMessage('bot', respuesta);
-      historial.push({ role: 'model', content: respuesta });
-    } catch(e) {
-      removeTyping();
-      addMessage('bot', 'Error de conexión. Comprueba que la app está activa.', true);
+
+      div.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="day-label">${nombreDia}</div>
+          <span style="font-size:0.65rem;color:var(--gris-texto)">${pedidos.length} ped · ${totalBultos} bul</span>
+        </div>
+        <div id="products-fecha-${diasMostrados}">${pedidosHtml}</div>
+        <button class="add-btn" onclick="addProductToContainer('products-fecha-${diasMostrados}')">+ Añadir</button>`;
+
+      container.appendChild(div);
+      diasMostrados++;
+    });
+
+    status.style.color = 'var(--verde)';
+    status.textContent = '✓ ' + diasMostrados + ' días cargados del Sheet · ' + Object.values(dias).reduce((s,v) => s+v.length, 0) + ' pedidos';
+
+  } catch(e) {
+    status.style.color = 'var(--rojo)';
+    status.textContent = 'Error de conexión: ' + e.message;
+  }
+
+  btn.disabled = false;
+  btn.textContent = '🔄 CARGAR PEDIDOS DEL SHEET';
+}
+
+function addProductToContainer(containerId) {
+  const container = document.getElementById(containerId);
+  const row = document.createElement('div');
+  row.className = 'product-row';
+  row.style.marginBottom = '4px';
+  row.innerHTML = `
+    <input class="product-input wide" type="text" placeholder="Producto" list="productos-list">
+    <input class="product-input narrow" type="number" placeholder="Bultos" min="1">
+    <button class="remove-btn" onclick="this.parentElement.remove()">×</button>`;
+  container.appendChild(row);
+}
+
+
+
+function mostrarResultado(resultados, totalBultos, totalHoras) {
+  const div = document.getElementById('resultado');
+  div.style.display = 'block';
+  let html = '<div class="planner-section">';
+  html += '<div class="planner-title">📊 Planificación calculada</div>';
+
+  resultados.forEach(r => {
+    if (r.vacio) {
+      html += `<div class="result-day"><div class="result-day-title">${r.dia}</div><p style="font-size:0.78rem;color:var(--gris-texto)">Sin pedidos</p></div>`;
+      return;
     }
+    html += `<div class="result-day">`;
+    html += `<div class="result-day-title">${r.dia}</div>`;
+    html += `<div class="result-card">`;
+    html += `<div class="result-item"><span class="result-label">Horario</span><span class="result-value"><span class="horario-badge">${r.horaInicio}</span>→<span class="horario-badge" style="margin-left:6px">${r.horaFin}</span></span></div>`;
+    html += `<div class="result-item"><span class="result-label">Personal necesario</span><span class="result-value highlight">${r.personas} personas</span></div>`;
+    html += `<div class="result-item"><span class="result-label">Horas totales</span><span class="result-value">${r.horasTotales}h</span></div>`;
+    r.productos.forEach(p => {
+      html += `<div class="result-item"><span class="result-label">${p.nombre} (${p.bultos} bultos)</span><span class="result-value">${p.mins} min · ${p.personas} pers${p.estimado ? ' *' : ''}</span></div>`;
+    });
+    html += `</div></div>`;
+  });
 
-    isLoading = false;
-    sendBtn.disabled = false;
-    input.focus();
-  }
+  html += `<div class="result-summary">`;
+  html += `<div class="result-summary-title">RESUMEN SEMANAL</div>`;
+  html += `<div class="result-item"><span class="result-label">Total bultos semana</span><span class="result-value highlight">${totalBultos.toLocaleString()}</span></div>`;
+  html += `<div class="result-item"><span class="result-label">Total horas trabajo</span><span class="result-value">${Math.round(totalHoras * 10) / 10}h</span></div>`;
+  html += `<p style="font-size:0.68rem;color:var(--gris-texto);margin-top:8px">* Producto sin histórico. Estimación genérica aplicada.</p>`;
+  html += `</div></div>`;
 
-  function handleKey(e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  }
+  div.innerHTML = html;
+  div.scrollIntoView({ behavior: 'smooth' });
+}
 
-  function autoResize(el) {
-    el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
-  }
+// ── INIT ──────────────────────────────────────────────────────────────────────
+checkStatus();
+initPlanner();
+setInterval(checkStatus, 5 * 60 * 1000);
 
-  function useSuggestion(btn) {
-    input.value = btn.textContent;
-    autoResize(input);
-    sendMessage();
-  }
-
-  // Init
-  checkStatus();
-  setInterval(checkStatus, 5 * 60 * 1000); // Refresca cada 5 min
+// Lista de productos para autocompletar
+const dl = document.createElement('datalist');
+dl.id = 'productos-list';
+Object.keys(ESTANDARES).forEach(p => { const opt = document.createElement('option'); opt.value = p; dl.appendChild(opt); });
+document.body.appendChild(dl);
 </script>
 </body>
 </html>
