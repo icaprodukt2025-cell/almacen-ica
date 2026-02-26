@@ -10,7 +10,7 @@ from googleapiclient.http import MediaIoBaseDownload
 import io
 from datetime import datetime
 
-app = Flask(__name__, static_folder='static')
+app = Flask(__name__, static_folder=`static´)
 CORS(app)
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
