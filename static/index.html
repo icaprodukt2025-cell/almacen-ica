@@ -738,7 +738,8 @@ async function renderPedidos() {
     });
 
     if (pedidosFiltrados.length === 0) {
-      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#128230;</div><p>No hay pedidos para este filtro</p></div>';
+      const fechasDisponibles = Object.keys(data.dias || {}).join(', ');
+      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#128230;</div><p>No hay pedidos para este filtro</p><p style="font-size:0.65rem;color:var(--texto3);margin-top:8px">Hoy: ' + hoy + '</p><p style="font-size:0.65rem;color:var(--texto3);margin-top:4px">Fechas en sheet: ' + fechasDisponibles.substring(0,200) + '</p></div>';
       return;
     }
 
