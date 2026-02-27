@@ -721,7 +721,7 @@ async function renderPedidos() {
     const res = await fetch('/api/planificacion');
     const data = await res.json();
     if (data.error) {
-      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#9888;</div><p>' + data.error + '</p></div>';
+      container.innerHTML = '<div class="empty-state"><p>' + data.error + '</p></div>';
       return;
     }
 
@@ -738,19 +738,19 @@ async function renderPedidos() {
     });
 
     if (pedidosFiltrados.length === 0) {
-      const fechasDisponibles = Object.keys(data.dias || {}).join(', ');
-      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#128230;</div><p>No hay pedidos para este filtro</p><p style="font-size:0.65rem;color:var(--texto3);margin-top:8px">Hoy: ' + hoy + '</p><p style="font-size:0.65rem;color:var(--texto3);margin-top:4px">Fechas en sheet: ' + fechasDisponibles.substring(0,200) + '</p></div>';
+      const fechasDisp = Object.keys(data.dias || {}).slice(0,5).join(', ');
+      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#128230;</div><p>No hay pedidos para este filtro</p><p style="font-size:0.65rem;color:var(--texto3);margin-top:8px">Hoy: ' + hoy + '</p><p style="font-size:0.65rem;color:var(--texto3)">Fechas: ' + fechasDisp + '</p></div>';
       return;
     }
 
     container.innerHTML = '';
     pedidosFiltrados.forEach((p, idx) => {
-      const id = 'ped-' + p.pedido + '-' + idx;
+      const cardId = 'ped-' + p.pedido + '-' + idx;
       const estado = estadosPedidos[p.pedido] || 'pendiente';
 
-      let cardBorder = '';
-      if (estado === 'confeccionado') cardBorder = 'border-color:var(--amarillo)';
-      if (estado === 'cargado') cardBorder = 'border-color:var(--verde-vivo);opacity:0.7';
+      let borderStyle = '';
+      if (estado === 'confeccionado') borderStyle = 'border-color:var(--amarillo)';
+      if (estado === 'cargado') borderStyle = 'border-color:var(--verde-vivo);opacity:0.7';
 
       let estadoBadge = '';
       if (estado === 'confeccionado') estadoBadge = '<span class="status-badge confeccionado">&#10003; Confeccionado</span>';
@@ -759,44 +759,60 @@ async function renderPedidos() {
       const btnConfClass = (estado === 'confeccionado' || estado === 'cargado') ? 'active' : '';
       const btnCargClass = estado === 'cargado' ? 'active' : '';
 
-      const div = document.createElement('div');
-      div.className = 'pedido-card';
-      div.id = id;
-      div.style.cssText = cardBorder;
+      const card = document.createElement('div');
+      card.className = 'pedido-card';
+      card.id = cardId;
+      card.style.cssText = borderStyle;
 
-      div.innerHTML =
-        '<div class="pedido-card-header" onclick="togglePedido('' + id + '')">' +
-          '<div style="min-width:52px">' +
-            '<div class="pedido-num">#' + p.pedido + '</div>' +
-            '<div style="font-family:'DM Mono',monospace;font-size:0.58rem;color:var(--texto3);margin-top:3px">' + (p.fecha_salida || '') + '</div>' +
-          '</div>' +
-          '<div class="pedido-main">' +
-            '<div class="pedido-producto">' + (p.producto || 'Sin producto') + '</div>' +
-            '<div class="pedido-cliente">' + (p.cliente || '') + '</div>' +
-            '<div class="pedido-chips" style="margin-top:6px">' +
-              (p.bultos ? '<span class="chip verde">&#128230; ' + p.bultos + ' bul</span>' : '') +
-              (p.palets ? '<span class="chip">&#11036; ' + p.palets + ' pal</span>' : '') +
-              (p.transportista ? '<span class="chip amarillo">&#128666; ' + p.transportista + '</span>' : '') +
-            '</div>' +
-          '</div>' +
-          '<div class="pedido-status">' + estadoBadge + '<span style="color:var(--texto3);font-size:1.2rem;margin-left:4px">&#8250;</span></div>' +
+      const header = document.createElement('div');
+      header.className = 'pedido-card-header';
+      header.addEventListener('click', function() { togglePedido(cardId); });
+      header.innerHTML =
+        '<div style="min-width:52px">' +
+          '<div class="pedido-num">#' + p.pedido + '</div>' +
+          '<div style="font-size:0.58rem;color:var(--texto3);margin-top:3px">' + (p.fecha_salida || '') + '</div>' +
         '</div>' +
-        '<div class="pedido-detail" id="detail-' + id + '">' +
-          (p.matricula ? '<div class="detail-row"><span class="detail-label">Matricula</span><span class="detail-value">' + p.matricula + '</span></div>' : '') +
-          (p.transportista ? '<div class="detail-row"><span class="detail-label">Transportista</span><span class="detail-value">' + p.transportista + '</span></div>' : '') +
-          (p.cliente ? '<div class="detail-row"><span class="detail-label">Cliente</span><span class="detail-value">' + p.cliente + '</span></div>' : '') +
-          (p.destino ? '<div class="detail-row"><span class="detail-label">Destino</span><span class="detail-value">' + p.destino + '</span></div>' : '') +
-          '<div class="action-btns">' +
-            '<button class="action-btn amarillo ' + btnConfClass + '" onclick="marcarEstado('' + p.pedido + '', 'confeccionado', '' + id + '')">' +
-              '&#10003; Confeccionado' +
-            '</button>' +
-            '<button class="action-btn verde ' + btnCargClass + '" onclick="marcarEstado('' + p.pedido + '', 'cargado', '' + id + '')">' +
-              '&#128666; Cargado' +
-            '</button>' +
+        '<div class="pedido-main">' +
+          '<div class="pedido-producto">' + (p.producto || 'Sin producto') + '</div>' +
+          '<div class="pedido-cliente">' + (p.cliente || '') + '</div>' +
+          '<div class="pedido-chips" style="margin-top:6px">' +
+            (p.bultos ? '<span class="chip verde">&#128230; ' + p.bultos + ' bul</span>' : '') +
+            (p.palets ? '<span class="chip">&#11036; ' + p.palets + ' pal</span>' : '') +
+            (p.transportista ? '<span class="chip amarillo">&#128666; ' + p.transportista + '</span>' : '') +
           '</div>' +
-        '</div>';
+        '</div>' +
+        '<div class="pedido-status">' + estadoBadge + '<span style="color:var(--texto3);font-size:1.2rem;margin-left:4px">&#8250;</span></div>';
 
-      container.appendChild(div);
+      const detail = document.createElement('div');
+      detail.className = 'pedido-detail';
+      detail.id = 'detail-' + cardId;
+
+      const btnConf = document.createElement('button');
+      btnConf.className = 'action-btn amarillo' + (btnConfClass ? ' active' : '');
+      btnConf.innerHTML = '&#10003; Confeccionado';
+      btnConf.addEventListener('click', function(e) { e.stopPropagation(); marcarEstado(p.pedido, 'confeccionado', cardId); });
+
+      const btnCarg = document.createElement('button');
+      btnCarg.className = 'action-btn verde' + (btnCargClass ? ' active' : '');
+      btnCarg.innerHTML = '&#128666; Cargado';
+      btnCarg.addEventListener('click', function(e) { e.stopPropagation(); marcarEstado(p.pedido, 'cargado', cardId); });
+
+      const actionBtns = document.createElement('div');
+      actionBtns.className = 'action-btns';
+      actionBtns.appendChild(btnConf);
+      actionBtns.appendChild(btnCarg);
+
+      let detailHTML = '';
+      if (p.matricula) detailHTML += '<div class="detail-row"><span class="detail-label">Matricula</span><span class="detail-value">' + p.matricula + '</span></div>';
+      if (p.transportista) detailHTML += '<div class="detail-row"><span class="detail-label">Transportista</span><span class="detail-value">' + p.transportista + '</span></div>';
+      if (p.cliente) detailHTML += '<div class="detail-row"><span class="detail-label">Cliente</span><span class="detail-value">' + p.cliente + '</span></div>';
+      if (p.destino) detailHTML += '<div class="detail-row"><span class="detail-label">Destino</span><span class="detail-value">' + p.destino + '</span></div>';
+      detail.innerHTML = detailHTML;
+      detail.appendChild(actionBtns);
+
+      card.appendChild(header);
+      card.appendChild(detail);
+      container.appendChild(card);
     });
 
   } catch(e) {
