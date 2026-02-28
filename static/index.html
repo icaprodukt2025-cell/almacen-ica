@@ -572,6 +572,18 @@ textarea::placeholder { color:var(--texto3); }
   <div class="date-carousel-wrap">
     <div class="date-carousel" id="date-carousel"></div>
   </div>
+  <div id="palet-activo-banner" style="display:none;background:rgba(41,121,255,0.12);border-bottom:2px solid var(--azul);padding:10px 16px;flex-shrink:0">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-family:'DM Mono',monospace;font-size:0.58rem;color:var(--azul);letter-spacing:0.1em;text-transform:uppercase">Palet en curso</div>
+        <div id="banner-info" style="font-size:0.75rem;color:var(--texto);margin-top:2px"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div id="banner-crono" style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.4rem;color:var(--azul)">00:00</div>
+        <button id="banner-btn-fin" style="background:var(--verde);border:none;border-radius:8px;color:#fff;font-family:'Syne',sans-serif;font-weight:700;font-size:0.75rem;padding:8px 14px;cursor:pointer">Finalizar</button>
+      </div>
+    </div>
+  </div>
   <div class="scroll-content" id="pedidos-list">
     <div class="loading-state"><div class="spinner"></div><p>Cargando pedidos...</p></div>
   </div>
@@ -664,7 +676,7 @@ let filtroActualCargas = 'hoy';
 function goTo(screen) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('screen-' + screen).classList.add('active');
-  if (screen === 'pedidos') renderPedidos();
+  if (screen === 'pedidos') { renderPedidos(); setTimeout(actualizarBannerPalet, 200); }
   if (screen === 'cargas') renderCargas();
   if (screen === 'planificacion') cargarPlanificacion();
 }
@@ -973,25 +985,10 @@ function renderPedidosFecha() {
       detail.innerHTML = detailHTML;
       detail.appendChild(actionBtns);
 
-      // Palet activo bar
+      // Highlight card if palet activo
       if (paletActivoInfo[p.pedido]) {
-        var info = paletActivoInfo[p.pedido];
-        var barDiv = document.createElement('div');
-        barDiv.className = 'palet-activo-bar';
-        barDiv.innerHTML =
-          '<div>' +
-            '<div class="palet-activo-info">L' + info.linea + ' &#183; ' + info.personas + ' pers &#183; Palet ' + info.palet + '</div>' +
-            '<div class="palet-activo-cronometro" id="crono-' + p.pedido + '">00:00</div>' +
-          '</div>' +
-          '<button class="btn-finalizar-palet" id="btn-fin-' + p.pedido + '">Finalizar palet</button>';
-        card.appendChild(barDiv);
-        // Bind finalizar button with closure
-        (function(ped) {
-          var btn = document.getElementById('btn-fin-' + ped);
-          if (btn) btn.addEventListener('click', function(e) { e.stopPropagation(); abrirModalFinalizar(ped); });
-        })(p.pedido);
-        // Restart card cronometro display
-        iniciarCronometroTarjeta(p.pedido);
+        card.style.borderColor = 'var(--azul)';
+        card.style.boxShadow = '0 0 8px rgba(41,121,255,0.3)';
       }
 
       card.appendChild(header);
@@ -1434,37 +1431,63 @@ function iniciarConfeccion() {
   var palet = document.getElementById('modal-palet').value.trim();
   if (!palet) { alert('Introduce el numero de palet'); return; }
 
-  horaInicioConfeccion = new Date();
   var pedido = pedidoEnConfeccion.pedido;
-
-  // Save active palet info
   paletActivoInfo[pedido] = {
     palet: palet,
     linea: lineaSeleccionada,
     personas: personasLinea,
-    inicio: horaInicioConfeccion,
+    inicio: new Date(),
     pedidoData: pedidoEnConfeccion
   };
 
-  // Close modal
   cerrarModalConfeccion();
-
-  // Start card cronometro
-  iniciarCronometroTarjeta(pedido);
+  actualizarBannerPalet();
   renderPedidosFecha();
 }
 
-function iniciarCronometroTarjeta(pedido) {
-  if (cardCronometros[pedido]) clearInterval(cardCronometros[pedido]);
-  cardCronometros[pedido] = setInterval(function() {
-    var info = paletActivoInfo[pedido];
-    if (!info) { clearInterval(cardCronometros[pedido]); return; }
-    var diff = Math.floor((new Date() - info.inicio) / 1000);
+function actualizarBannerPalet() {
+  // Find any active palet
+  var pedidoActivo = null;
+  var infoActiva = null;
+  for (var ped in paletActivoInfo) {
+    pedidoActivo = ped;
+    infoActiva = paletActivoInfo[ped];
+    break;
+  }
+
+  var banner = document.getElementById('palet-activo-banner');
+  if (!banner) return;
+
+  if (!pedidoActivo || !infoActiva) {
+    banner.style.display = 'none';
+    if (cronometroInterval) { clearInterval(cronometroInterval); cronometroInterval = null; }
+    return;
+  }
+
+  banner.style.display = 'block';
+  var prod = infoActiva.pedidoData ? (infoActiva.pedidoData.producto || '') : '';
+  document.getElementById('banner-info').textContent =
+    '#' + pedidoActivo + ' - Palet ' + infoActiva.palet + ' - L' + infoActiva.linea + ' - ' + infoActiva.personas + ' pers';
+
+  // Wire up button
+  var btnFin = document.getElementById('banner-btn-fin');
+  if (btnFin) {
+    btnFin.onclick = function() { abrirModalFinalizar(pedidoActivo); };
+  }
+
+  // Start/restart cronometro
+  if (cronometroInterval) clearInterval(cronometroInterval);
+  cronometroInterval = setInterval(function() {
+    var diff = Math.floor((new Date() - infoActiva.inicio) / 1000);
     var mins = Math.floor(diff / 60);
     var secs = diff % 60;
-    var el = document.getElementById('crono-' + pedido);
+    var el = document.getElementById('banner-crono');
     if (el) el.textContent = String(mins).padStart(2,'0') + ':' + String(secs).padStart(2,'0');
   }, 1000);
+}
+
+function iniciarCronometroTarjeta(pedido) {
+  // Legacy - now uses banner
 }
 
 function abrirModalFinalizar(pedido) {
