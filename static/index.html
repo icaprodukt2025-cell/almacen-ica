@@ -1625,9 +1625,13 @@ function guardarConfeccion() {
   xhr.send(body);
 }
 
-// Close modals on overlay click
-document.getElementById('modal-confeccion').addEventListener('click', function(e) { if (e.target === this) cerrarModalConfeccion(); });
-document.getElementById('modal-finalizar').addEventListener('click', function(e) { if (e.target === this) cerrarModalFinalizar(); });;
+// Close modals on overlay click - wait for DOM
+window.addEventListener('DOMContentLoaded', function() {
+  var mc = document.getElementById('modal-confeccion');
+  var mf = document.getElementById('modal-finalizar');
+  if (mc) mc.addEventListener('click', function(e) { if (e.target === this) cerrarModalConfeccion(); });
+  if (mf) mf.addEventListener('click', function(e) { if (e.target === this) cerrarModalFinalizar(); });
+});;
 
 </script>
 
