@@ -983,8 +983,13 @@ function renderPedidosFecha() {
             '<div class="palet-activo-info">L' + info.linea + ' &#183; ' + info.personas + ' pers &#183; Palet ' + info.palet + '</div>' +
             '<div class="palet-activo-cronometro" id="crono-' + p.pedido + '">00:00</div>' +
           '</div>' +
-          '<button class="btn-finalizar-palet" onclick="abrirModalFinalizar(' + JSON.stringify(p.pedido) + ')">Finalizar palet</button>';
+          '<button class="btn-finalizar-palet" id="btn-fin-' + p.pedido + '">Finalizar palet</button>';
         card.appendChild(barDiv);
+        // Bind finalizar button with closure
+        (function(ped) {
+          var btn = document.getElementById('btn-fin-' + ped);
+          if (btn) btn.addEventListener('click', function(e) { e.stopPropagation(); abrirModalFinalizar(ped); });
+        })(p.pedido);
         // Restart card cronometro display
         iniciarCronometroTarjeta(p.pedido);
       }
