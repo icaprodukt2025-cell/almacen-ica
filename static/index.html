@@ -1311,59 +1311,73 @@ function addLoteRow() {
   container.appendChild(row);
 }
 
-async function guardarConfeccion() {
+function guardarConfeccion() {
   if (!pedidoEnConfeccion) return;
 
-  const palet = document.getElementById('modal-palet').value.trim();
+  var palet = document.getElementById('modal-palet').value.trim();
   if (!palet) { alert('Indica el numero de palet'); return; }
 
-  const lotes = [];
-  document.querySelectorAll('#modal-lotes-container .lote-row').forEach(row => {
-    const inputs = row.querySelectorAll('input');
-    const lote = inputs[0].value.trim();
-    const kgUsados = parseFloat(inputs[1].value.replace(',','.')) || 0;
-    const kgDestrio = parseFloat(inputs[2].value.replace(',','.')) || 0;
-    if (lote) lotes.push({ lote, kg_usados: kgUsados, kg_destrio: kgDestrio });
-  });
+  var lotes = [];
+  var rows = document.querySelectorAll('#modal-lotes-container .lote-row');
+  for (var i = 0; i < rows.length; i++) {
+    var inputs = rows[i].querySelectorAll('input');
+    var loteVal = inputs[0].value.trim();
+    var kgU = parseFloat(String(inputs[1].value).replace(',','.')) || 0;
+    var kgD = parseFloat(String(inputs[2].value).replace(',','.')) || 0;
+    if (loteVal) {
+      lotes.push({ lote: loteVal, kg_usados: kgU, kg_destrio: kgD });
+    }
+  }
 
   if (lotes.length === 0) { alert('Annade al menos un lote'); return; }
 
-  const saveBtn = document.querySelector('.modal-save');
+  var saveBtn = document.querySelector('.modal-save');
   saveBtn.textContent = 'Guardando...';
   saveBtn.disabled = true;
 
-  try {
-    const payload = {
-      pedido: String(pedidoEnConfeccion.pedido || ''),
-      producto: String(pedidoEnConfeccion.producto || ''),
-      cliente: String(pedidoEnConfeccion.cliente || ''),
-      palet: String(palet || ''),
-      lotes: lotes.map(function(l) {
-        return { lote: String(l.lote || ''), kg_usados: Number(l.kg_usados) || 0, kg_destrio: Number(l.kg_destrio) || 0 };
-      })
-    };
-    const bodyStr = JSON.stringify(payload);
-    const res = await fetch('/api/confeccion', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: bodyStr
-    });
-    const data = await res.json();
-    if (data.ok) {
-      estadosPedidos[pedidoEnConfeccion.pedido] = 'confeccionado';
-      cerrarModalConfeccion();
-      renderPedidosFecha();
-    } else {
-      alert('Error servidor: ' + (data.error || 'desconocido'));
+  var pedidoNum = String(pedidoEnConfeccion.pedido || '');
+  var producto = String(pedidoEnConfeccion.producto || '');
+  var cliente = String(pedidoEnConfeccion.cliente || '');
+
+  var body = '{"pedido":"' + pedidoNum + '","producto":"' + producto.replace(/"/g,'\\"') + '","cliente":"' + cliente.replace(/"/g,'\\"') + '","palet":"' + palet + '","lotes":[';
+  for (var j = 0; j < lotes.length; j++) {
+    if (j > 0) body += ',';
+    body += '{"lote":"' + String(lotes[j].lote).replace(/"/g,'\\"') + '","kg_usados":' + lotes[j].kg_usados + ',"kg_destrio":' + lotes[j].kg_destrio + '}';
+  }
+  body += ']}';
+
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/confeccion', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === 4) {
+      saveBtn.textContent = '\u2713 Guardar y marcar Confeccionado';
+      saveBtn.disabled = false;
+      if (xhr.status === 200) {
+        try {
+          var resp = JSON.parse(xhr.responseText);
+          if (resp.ok) {
+            estadosPedidos[pedidoEnConfeccion.pedido] = 'confeccionado';
+            cerrarModalConfeccion();
+            renderPedidosFecha();
+          } else {
+            alert('Error servidor: ' + (resp.error || 'desconocido'));
+          }
+        } catch(e2) {
+          alert('Error respuesta: ' + xhr.responseText);
+        }
+      } else {
+        alert('Error HTTP: ' + xhr.status);
+      }
     }
-  } catch(e) {
-    alert('Error: ' + e.message + ' | ' + e.name);
-  } finally {
+  };
+  xhr.onerror = function() {
     saveBtn.textContent = '\u2713 Guardar y marcar Confeccionado';
     saveBtn.disabled = false;
-  }
+    alert('Error de red');
+  };
+  xhr.send(body);
 }
-
 // Cerrar modal al pulsar fuera
 document.getElementById('modal-confeccion').addEventListener('click', function(e) {
   if (e.target === this) cerrarModalConfeccion();
