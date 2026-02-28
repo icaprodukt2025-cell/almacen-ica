@@ -1382,15 +1382,20 @@ function abrirModalConfeccion(pedido, producto, cliente, bultos, palets) {
     var pv = document.getElementById('modal-personas-val');
     if (pv) pv.textContent = 10;
   }
-  // Record start time
-  horaInicioConfeccion = new Date();
+  // Reset to step 1 (iniciar)
+  horaInicioConfeccion = null;
+  if (cronometroInterval) { clearInterval(cronometroInterval); cronometroInterval = null; }
+  document.getElementById('modal-step-iniciar').style.display = 'block';
+  document.getElementById('modal-step-finalizar').style.display = 'none';
   estadosPedidos[pedido] = 'en_confeccion';
   document.getElementById('modal-confeccion').classList.add('open');
 }
 
 function cerrarModalConfeccion() {
+  if (cronometroInterval) { clearInterval(cronometroInterval); cronometroInterval = null; }
   document.getElementById('modal-confeccion').classList.remove('open');
   pedidoEnConfeccion = null;
+  horaInicioConfeccion = null;
 }
 
 function addLoteRow() {
@@ -1404,6 +1409,35 @@ function addLoteRow() {
     '<button class="btn-del-lote" onclick="this.parentElement.remove()">&#10005;</button>';
   container.appendChild(row);
 }
+
+var cronometroInterval = null;
+
+function iniciarConfeccion() {
+  var palet = document.getElementById('modal-palet').value.trim();
+  if (!palet) { alert('Indica el numero de palet antes de iniciar'); return; }
+
+  horaInicioConfeccion = new Date();
+
+  // Switch to step 2
+  document.getElementById('modal-step-iniciar').style.display = 'none';
+  document.getElementById('modal-step-finalizar').style.display = 'block';
+
+  // Show start time
+  var h = String(horaInicioConfeccion.getHours()).padStart(2,'0');
+  var m = String(horaInicioConfeccion.getMinutes()).padStart(2,'0');
+  document.getElementById('modal-inicio-display').textContent = 'Inicio: ' + h + ':' + m;
+
+  // Start cronometro
+  cronometroInterval = setInterval(function() {
+    var ahora = new Date();
+    var diff = Math.floor((ahora - horaInicioConfeccion) / 1000);
+    var mins = Math.floor(diff / 60);
+    var secs = diff % 60;
+    document.getElementById('modal-tiempo-display').textContent =
+      String(mins).padStart(2,'0') + ':' + String(secs).padStart(2,'0');
+  }, 1000);
+}
+
 
 function guardarConfeccion() {
   if (!pedidoEnConfeccion) return;
@@ -1474,11 +1508,18 @@ function guardarConfeccion() {
             if (total > 0 && hecho < total) {
               // More palets to go - reset and reopen
               document.getElementById('modal-palet').value = hecho + 1;
+              // Reset for next palet
+              if (cronometroInterval) { clearInterval(cronometroInterval); cronometroInterval = null; }
+              document.getElementById('modal-step-iniciar').style.display = 'block';
+              document.getElementById('modal-step-finalizar').style.display = 'none';
+              document.getElementById('modal-tiempo-display').textContent = '00:00';
+              document.getElementById('modal-palet').value = hecho + 1;
               document.getElementById('modal-lotes-container').innerHTML = '';
               addLoteRow();
+              horaInicioConfeccion = null;
               var counterEl = document.getElementById('modal-palet-counter');
               counterEl.textContent = (hecho + 1) + ' de ' + total + ' palets';
-              saveBtn.textContent = '\u2713 Guardar y marcar Confeccionado';
+              saveBtn.textContent = '\u2713 Finalizar y guardar';
               saveBtn.disabled = false;
             } else {
               estadosPedidos[ped] = 'confeccionado';
@@ -1545,8 +1586,22 @@ document.getElementById('modal-confeccion').addEventListener('click', function(e
     <div id="modal-lotes-container"></div>
     <button class="btn-add-lote" onclick="addLoteRow()">+ A&#241;adir lote</button>
 
-    <button class="modal-save" onclick="guardarConfeccion()">&#10003; Guardar y marcar Confeccionado</button>
-    <button class="modal-cancel" onclick="cerrarModalConfeccion()">Cancelar</button>
+    <!-- Step 1: Iniciar -->
+    <div id="modal-step-iniciar">
+      <button class="modal-save" onclick="iniciarConfeccion()" style="background:var(--azul)">&#9654; Iniciar confeccion</button>
+      <button class="modal-cancel" onclick="cerrarModalConfeccion()">Cancelar</button>
+    </div>
+
+    <!-- Step 2: En curso + Finalizar -->
+    <div id="modal-step-finalizar" style="display:none">
+      <div id="modal-cronometro" style="text-align:center;padding:14px;background:var(--card);border:1px solid var(--verde-vivo);border-radius:10px;margin-bottom:10px">
+        <div style="font-family:'DM Mono',monospace;font-size:0.6rem;color:var(--texto3);letter-spacing:0.1em;text-transform:uppercase">En curso</div>
+        <div id="modal-tiempo-display" style="font-family:'Syne',sans-serif;font-weight:800;font-size:2rem;color:var(--verde-vivo);margin-top:4px">00:00</div>
+        <div id="modal-inicio-display" style="font-family:'DM Mono',monospace;font-size:0.6rem;color:var(--texto3);margin-top:2px"></div>
+      </div>
+      <button class="modal-save" onclick="guardarConfeccion()">&#10003; Finalizar y guardar</button>
+      <button class="modal-cancel" onclick="cerrarModalConfeccion()">Cancelar</button>
+    </div>
   </div>
 </div>
 </body>
