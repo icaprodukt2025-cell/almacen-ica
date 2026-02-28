@@ -166,7 +166,7 @@ header::after {
 .filter-tab.active { color:var(--verde-vivo); border-bottom-color:var(--verde-vivo); }
 
 /* SCROLL CONTENT */
-.scroll-content { flex:1; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:10px; align-items: stretch; }
+.scroll-content { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:12px; display:flex; flex-direction:column; gap:10px; align-items:stretch; min-height:0; }
 .scroll-content::-webkit-scrollbar { width:2px; }
 .scroll-content::-webkit-scrollbar-thumb { background:var(--borde2); }
 
@@ -254,6 +254,26 @@ header::after {
 .action-btn.amarillo:not(.active) { border-color:rgba(200,168,75,0.4); color:var(--amarillo); }
 .action-btn.verde:not(.active) { border-color:rgba(61,139,61,0.4); color:var(--verde-vivo); }
 .action-btn.active.amarillo { background:var(--amarillo-dim); border-color:var(--amarillo); color:var(--amarillo); font-weight:600; }
+.action-btn.azul { border-color:var(--azul); color:var(--azul); }
+.action-btn.active.azul { background:var(--azul-dim); border-color:var(--azul); color:var(--azul); font-weight:600; }
+
+/* MODAL CONFECCION */
+.modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:1000; align-items:flex-end; justify-content:center; }
+.modal-overlay.open { display:flex; }
+.modal-box { background:var(--panel); border:1px solid var(--borde2); border-radius:16px 16px 0 0; width:100%; max-height:85vh; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:20px 16px 40px; }
+.modal-title { font-family:'Syne',sans-serif; font-weight:800; font-size:1.1rem; color:var(--texto); margin-bottom:4px; }
+.modal-sub { font-size:0.72rem; color:var(--texto2); margin-bottom:16px; }
+.modal-label { font-family:'DM Mono',monospace; font-size:0.6rem; color:var(--texto3); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:4px; display:block; }
+.modal-input { width:100%; background:var(--card); border:1px solid var(--borde2); border-radius:8px; padding:10px 12px; color:var(--texto); font-family:'DM Sans',sans-serif; font-size:0.9rem; outline:none; margin-bottom:12px; }
+.modal-input:focus { border-color:var(--verde-vivo); }
+.lote-row { display:grid; grid-template-columns:1fr 80px 80px 32px; gap:6px; align-items:center; margin-bottom:8px; }
+.lote-row input { margin-bottom:0; }
+.btn-add-lote { background:transparent; border:1px dashed var(--borde2); color:var(--texto3); border-radius:8px; padding:8px; font-size:0.75rem; cursor:pointer; width:100%; margin-bottom:12px; }
+.btn-add-lote:hover { border-color:var(--verde-vivo); color:var(--verde-vivo); }
+.btn-del-lote { background:transparent; border:none; color:var(--rojo); cursor:pointer; font-size:1rem; padding:4px; }
+.modal-save { width:100%; padding:14px; background:var(--verde); border:none; border-radius:10px; color:#fff; font-family:'Syne',sans-serif; font-weight:700; font-size:0.9rem; cursor:pointer; margin-top:8px; }
+.modal-save:hover { background:var(--verde-vivo); }
+.modal-cancel { width:100%; padding:10px; background:transparent; border:1px solid var(--borde2); border-radius:10px; color:var(--texto3); font-size:0.8rem; cursor:pointer; margin-top:6px; }
 .action-btn.active.verde { background:rgba(61,139,61,0.1); border-color:var(--verde-vivo); color:var(--verde-vivo); font-weight:600; }
 
 /* CARGA CARD */
@@ -336,7 +356,7 @@ header::after {
   flex-direction: column;
   gap: 8px;
 }
-.plan-dia-body.open { display:flex; }
+.plan-dia-body.open { display:flex; overflow:visible; }
 .plan-horario {
   background: rgba(61,139,61,0.08);
   border: 1px solid rgba(61,139,61,0.2);
@@ -799,6 +819,12 @@ async function renderPedidos() {
       detail.className = 'pedido-detail';
       detail.id = 'detail-' + cardId;
 
+      const btnConfecc = document.createElement('button');
+      const enConfecc = (estadosPedidos[p.pedido] === 'en_confeccion');
+      btnConfecc.className = 'action-btn azul' + (enConfecc ? ' active' : '');
+      btnConfecc.innerHTML = '&#9881; Confeccionar';
+      btnConfecc.addEventListener('click', function(e) { e.stopPropagation(); abrirModalConfeccion(p.pedido, p.producto, p.cliente, p.bultos); });
+
       const btnConf = document.createElement('button');
       btnConf.className = 'action-btn amarillo' + (btnConfClass ? ' active' : '');
       btnConf.innerHTML = '&#10003; Confeccionado';
@@ -811,6 +837,7 @@ async function renderPedidos() {
 
       const actionBtns = document.createElement('div');
       actionBtns.className = 'action-btns';
+      actionBtns.appendChild(btnConfecc);
       actionBtns.appendChild(btnConf);
       actionBtns.appendChild(btnCarg);
 
@@ -854,8 +881,14 @@ function togglePedido(id) {
 // ===== MARCAR ESTADO PEDIDO =====
 function marcarEstado(numeroPedido, nuevoEstado, cardId) {
   const estadoActual = estadosPedidos[numeroPedido] || 'pendiente';
-  // Toggle: si ya tiene ese estado, vuelve a pendiente
-  estadosPedidos[numeroPedido] = estadoActual === nuevoEstado ? 'pendiente' : nuevoEstado;
+  const nuevoValor = estadoActual === nuevoEstado ? 'pendiente' : nuevoEstado;
+  estadosPedidos[numeroPedido] = nuevoValor;
+  // Sincronizar con estadosCargas
+  if (nuevoValor === 'cargado') {
+    estadosCargas[numeroPedido] = true;
+  } else {
+    delete estadosCargas[numeroPedido];
+  }
   renderPedidos();
 }
 
@@ -1168,6 +1201,110 @@ function setGreeting() {
 setGreeting();
 sincronizar();
 setInterval(sincronizar, 5 * 60 * 1000);
+
+// ===== MODAL CONFECCION =====
+let pedidoEnConfeccion = null;
+
+function abrirModalConfeccion(pedido, producto, cliente, bultos) {
+  pedidoEnConfeccion = { pedido, producto, cliente, bultos };
+  document.getElementById('modal-conf-title').textContent = 'Confeccionar #' + pedido;
+  document.getElementById('modal-conf-sub').textContent = (producto || '') + ' - ' + (cliente || '');
+  document.getElementById('modal-palet').value = '';
+  document.getElementById('modal-lotes-container').innerHTML = '';
+  addLoteRow();
+  estadosPedidos[pedido] = 'en_confeccion';
+  document.getElementById('modal-confeccion').classList.add('open');
+}
+
+function cerrarModalConfeccion() {
+  document.getElementById('modal-confeccion').classList.remove('open');
+  pedidoEnConfeccion = null;
+}
+
+function addLoteRow() {
+  const container = document.getElementById('modal-lotes-container');
+  const row = document.createElement('div');
+  row.className = 'lote-row';
+  row.innerHTML =
+    '<input class="modal-input" type="text" placeholder="Lote" style="margin:0">' +
+    '<input class="modal-input" type="number" placeholder="Kg usados" style="margin:0" min="0">' +
+    '<input class="modal-input" type="number" placeholder="Kg destrio" style="margin:0" min="0">' +
+    '<button class="btn-del-lote" onclick="this.parentElement.remove()">&#10005;</button>';
+  container.appendChild(row);
+}
+
+async function guardarConfeccion() {
+  if (!pedidoEnConfeccion) return;
+
+  const palet = document.getElementById('modal-palet').value.trim();
+  if (!palet) { alert('Indica el numero de palet'); return; }
+
+  const lotes = [];
+  document.querySelectorAll('#modal-lotes-container .lote-row').forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const lote = inputs[0].value.trim();
+    const kgUsados = inputs[1].value.trim();
+    const kgDestrio = inputs[2].value.trim();
+    if (lote) lotes.push({ lote, kg_usados: kgUsados || 0, kg_destrio: kgDestrio || 0 });
+  });
+
+  if (lotes.length === 0) { alert('Annade al menos un lote'); return; }
+
+  const saveBtn = document.querySelector('.modal-save');
+  saveBtn.textContent = 'Guardando...';
+  saveBtn.disabled = true;
+
+  try {
+    const res = await fetch('/api/confeccion', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pedido: pedidoEnConfeccion.pedido,
+        producto: pedidoEnConfeccion.producto,
+        cliente: pedidoEnConfeccion.cliente,
+        palet: palet,
+        lotes: lotes
+      })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      estadosPedidos[pedidoEnConfeccion.pedido] = 'confeccionado';
+      cerrarModalConfeccion();
+      renderPedidos();
+    } else {
+      alert('Error: ' + (data.error || 'desconocido'));
+    }
+  } catch(e) {
+    alert('Error de conexion: ' + e.message);
+  } finally {
+    saveBtn.textContent = '\u2713 Guardar y marcar Confeccionado';
+    saveBtn.disabled = false;
+  }
+}
+
+// Cerrar modal al pulsar fuera
+document.getElementById('modal-confeccion').addEventListener('click', function(e) {
+  if (e.target === this) cerrarModalConfeccion();
+});
+
 </script>
+
+<!-- MODAL CONFECCION -->
+<div class="modal-overlay" id="modal-confeccion">
+  <div class="modal-box">
+    <div class="modal-title" id="modal-conf-title">Confeccionar Pedido</div>
+    <div class="modal-sub" id="modal-conf-sub"></div>
+
+    <label class="modal-label">N&#250;mero de Palet</label>
+    <input class="modal-input" type="number" id="modal-palet" placeholder="Ej: 1" min="1">
+
+    <label class="modal-label" style="margin-top:4px">Lotes utilizados</label>
+    <div id="modal-lotes-container"></div>
+    <button class="btn-add-lote" onclick="addLoteRow()">+ A&#241;adir lote</button>
+
+    <button class="modal-save" onclick="guardarConfeccion()">&#10003; Guardar y marcar Confeccionado</button>
+    <button class="modal-cancel" onclick="cerrarModalConfeccion()">Cancelar</button>
+  </div>
+</div>
 </body>
 </html>
