@@ -1227,8 +1227,8 @@ function addLoteRow() {
   row.className = 'lote-row';
   row.innerHTML =
     '<input class="modal-input" type="text" placeholder="Lote" style="margin:0">' +
-    '<input class="modal-input" type="number" placeholder="Kg usados" style="margin:0" min="0">' +
-    '<input class="modal-input" type="number" placeholder="Kg destrio" style="margin:0" min="0">' +
+    '<input class="modal-input" type="text" placeholder="Kg usados" style="margin:0" inputmode="decimal">' +
+    '<input class="modal-input" type="text" placeholder="Kg destrio" style="margin:0" inputmode="decimal">' +
     '<button class="btn-del-lote" onclick="this.parentElement.remove()">&#10005;</button>';
   container.appendChild(row);
 }
@@ -1243,9 +1243,9 @@ async function guardarConfeccion() {
   document.querySelectorAll('#modal-lotes-container .lote-row').forEach(row => {
     const inputs = row.querySelectorAll('input');
     const lote = inputs[0].value.trim();
-    const kgUsados = inputs[1].value.trim();
-    const kgDestrio = inputs[2].value.trim();
-    if (lote) lotes.push({ lote, kg_usados: kgUsados || 0, kg_destrio: kgDestrio || 0 });
+    const kgUsados = parseFloat(inputs[1].value.replace(',','.')) || 0;
+    const kgDestrio = parseFloat(inputs[2].value.replace(',','.')) || 0;
+    if (lote) lotes.push({ lote, kg_usados: kgUsados, kg_destrio: kgDestrio });
   });
 
   if (lotes.length === 0) { alert('Annade al menos un lote'); return; }
@@ -1296,7 +1296,7 @@ document.getElementById('modal-confeccion').addEventListener('click', function(e
     <div class="modal-sub" id="modal-conf-sub"></div>
 
     <label class="modal-label">N&#250;mero de Palet</label>
-    <input class="modal-input" type="number" id="modal-palet" placeholder="Ej: 1" min="1">
+    <input class="modal-input" type="text" id="modal-palet" placeholder="Ej: 1" inputmode="numeric">
 
     <label class="modal-label" style="margin-top:4px">Lotes utilizados</label>
     <div id="modal-lotes-container"></div>
