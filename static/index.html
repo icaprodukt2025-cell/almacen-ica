@@ -490,9 +490,9 @@ textarea::placeholder { color:var(--texto3); }
 
     <div class="home-stats">
       <div class="stat-card">
-        <span class="stat-card-label">Pedidos hoy</span>
+        <span class="stat-card-label" id="statPedidosLabel">Pedidos hoy</span>
         <span class="stat-card-value" id="statPedidosHoy">&#8212;</span>
-        <span class="stat-card-sub">Ordenes activas</span>
+        <span class="stat-card-sub" id="statPedidosSub">pendientes</span>
       </div>
       <div class="stat-card">
         <span class="stat-card-label">Cargas hoy</span>
@@ -571,6 +571,7 @@ textarea::placeholder { color:var(--texto3); }
     <div class="filter-tab" onclick="filtrarCargas('pendiente', this)">Pendientes</div>
     <div class="filter-tab" onclick="filtrarCargas('cargado', this)">Cargados</div>
   </div>
+  <div id="cargas-summary" style="padding:6px 16px;font-family:'DM Mono',monospace;font-size:0.7rem;display:flex;gap:6px;align-items:center;border-bottom:1px solid var(--borde)"></div>
   <div class="scroll-content" id="cargas-list">
     <div class="loading-state"><div class="spinner"></div><p>Cargando cargas...</p></div>
   </div>
@@ -665,7 +666,7 @@ async function sincronizar() {
     if (status.ok) {
       dot.className = 'status-dot online';
       txt.textContent = 'En l?nea';
-      document.getElementById('statPedidosHoy').textContent = status.pedidos || '?';
+      document.getElementById('statPedidosHoy').textContent = status.pedidos_hoy !== undefined ? status.pedidos_hoy : (status.pedidos || '?');
       document.getElementById('statCargasHoy').textContent = status.lineas_carga || '?';
     } else {
       dot.className = 'status-dot error';
@@ -805,6 +806,9 @@ function initDateCarousel(diasData) {
     carousel.appendChild(chip);
   });
 
+  // Update home stat card
+  actualizarStatPedidos(diasData);
+
   // Scroll to selected chip
   setTimeout(() => {
     const activeChip = carousel.querySelector('.date-chip.active');
@@ -814,6 +818,26 @@ function initDateCarousel(diasData) {
 
 function filtrarPedidos(filtro, el) {
   // Legacy - no longer used
+}
+
+function actualizarStatPedidos(diasData) {
+  if (!diasData || !fechaSeleccionada) return;
+  var pedidosFecha = diasData[fechaSeleccionada] || [];
+  var total = pedidosFecha.length;
+  // Count confeccionados for this date
+  var confeccionados = 0;
+  pedidosFecha.forEach(function(p) {
+    var estado = estadosPedidos[p.pedido];
+    if (estado === 'confeccionado' || estado === 'cargado') confeccionados++;
+  });
+  var pendientes = total - confeccionados;
+  var hoy = getFechaHoy();
+  var esHoy = fechaSeleccionada === hoy;
+  var p = fechaSeleccionada ? fechaSeleccionada.split('/') : null;
+  var labelTxt = esHoy ? 'Pedidos hoy' : (p ? p[0] + '/' + p[1] : 'Pedidos');
+  document.getElementById('statPedidosLabel').textContent = labelTxt;
+  document.getElementById('statPedidosHoy').textContent = pendientes;
+  document.getElementById('statPedidosSub').textContent = pendientes + ' de ' + total + ' pendientes';
 }
 function filtrarCargas(filtro, el) {
   filtroActualCargas = filtro;
@@ -904,7 +928,7 @@ function renderPedidosFecha() {
       const enConfecc = (estadosPedidos[p.pedido] === 'en_confeccion');
       btnConfecc.className = 'action-btn azul' + (enConfecc ? ' active' : '');
       btnConfecc.innerHTML = '&#9881; Confeccionar';
-      btnConfecc.addEventListener('click', function(e) { e.stopPropagation(); abrirModalConfeccion(p.pedido, p.producto, p.cliente, p.bultos); });
+      btnConfecc.addEventListener('click', function(e) { e.stopPropagation(); abrirModalConfeccion(p.pedido, p.producto, p.cliente, p.bultos, p.palets); });
 
       const btnConf = document.createElement('button');
       btnConf.className = 'action-btn amarillo' + (btnConfClass ? ' active' : '');
@@ -967,7 +991,8 @@ function marcarEstado(numeroPedido, nuevoEstado, cardId) {
   } else {
     delete estadosCargas[numeroPedido];
   }
-  renderPedidos();
+  renderPedidosFecha();
+  if (pedidosDataCache) actualizarStatPedidos(pedidosDataCache);
 }
 
 
@@ -981,13 +1006,30 @@ async function renderCargas() {
 
     if (data.error) { container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">??</div><p>' + data.error + '</p></div>'; return; }
 
-    let items = data.cargas || [];
+    var todosItems = data.cargas || [];
+    var totalHoy = todosItems.length;
+    var cargados = todosItems.filter(function(c) { return estadosCargas[c.pedido]; }).length;
+    var pendientes = totalHoy - cargados;
 
-    if (filtroActualCargas === 'pendiente') items = items.filter(c => !estadosCargas[c.pedido]);
-    if (filtroActualCargas === 'cargado') items = items.filter(c => estadosCargas[c.pedido]);
+    // Update stat
+    document.getElementById('statCargasHoy').textContent = cargados + '/' + totalHoy;
+
+    // Summary bar
+    var summaryEl = document.getElementById('cargas-summary');
+    if (summaryEl) {
+      summaryEl.innerHTML =
+        '<span style="color:var(--verde-vivo)">&#10003; ' + cargados + ' cargados</span>' +
+        '<span style="color:var(--texto3)">&nbsp;&#183;&nbsp;</span>' +
+        '<span style="color:var(--amarillo)">' + pendientes + ' pendientes</span>';
+    }
+
+    var items = todosItems.slice();
+    if (filtroActualCargas === 'pendiente') items = items.filter(function(c) { return !estadosCargas[c.pedido]; });
+    if (filtroActualCargas === 'cargado') items = items.filter(function(c) { return estadosCargas[c.pedido]; });
 
     if (items.length === 0) {
-      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">?</div><p>No hay cargas en esta secci?n</p></div>';
+      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#128666;</div><p>' +
+        (filtroActualCargas === 'cargado' ? 'Ninguno cargado aun' : 'Todos cargados &#10003;') + '</p></div>';
       return;
     }
 
@@ -1282,14 +1324,66 @@ setInterval(sincronizar, 5 * 60 * 1000);
 
 // ===== MODAL CONFECCION =====
 let pedidoEnConfeccion = null;
+var lineaSeleccionada = 1;
+var personasLinea = 10;
+var horaInicioConfeccion = null;
 
-function abrirModalConfeccion(pedido, producto, cliente, bultos) {
-  pedidoEnConfeccion = { pedido, producto, cliente, bultos };
+function selLinea(n) {
+  lineaSeleccionada = n;
+  for (var i = 1; i <= 3; i++) {
+    var btn = document.getElementById('btn-linea-' + i);
+    if (!btn) continue;
+    if (i === n) {
+      btn.style.background = 'var(--verde)';
+      btn.style.border = '2px solid var(--verde-vivo)';
+      btn.style.color = '#fff';
+    } else {
+      btn.style.background = 'var(--card)';
+      btn.style.border = '1px solid var(--borde2)';
+      btn.style.color = 'var(--texto2)';
+    }
+  }
+}
+
+function ajustarPersonasLinea(delta) {
+  personasLinea = Math.max(1, personasLinea + delta);
+  var el = document.getElementById('modal-personas-val');
+  if (el) el.textContent = personasLinea;
+}
+var confeccionadosPorPedido = {}; // pedido -> num palets confeccionados
+
+function abrirModalConfeccion(pedido, producto, cliente, bultos, palets) {
+  var totalPalets = parseInt(palets) || 0;
+  // Count already confeccionados palets for this pedido
+  var confeccionados = confeccionadosPorPedido[pedido] || 0;
+  pedidoEnConfeccion = { pedido: pedido, producto: producto, cliente: cliente, bultos: bultos, totalPalets: totalPalets };
+
   document.getElementById('modal-conf-title').textContent = 'Confeccionar #' + pedido;
   document.getElementById('modal-conf-sub').textContent = (producto || '') + ' - ' + (cliente || '');
-  document.getElementById('modal-palet').value = '';
+
+  // Show palet counter
+  var counterEl = document.getElementById('modal-palet-counter');
+  if (totalPalets > 0) {
+    counterEl.textContent = (confeccionados + 1) + ' de ' + totalPalets + ' palets';
+    counterEl.style.display = 'block';
+  } else {
+    counterEl.style.display = 'none';
+  }
+
+  // Auto-suggest next palet number
+  document.getElementById('modal-palet').value = confeccionados + 1;
   document.getElementById('modal-lotes-container').innerHTML = '';
   addLoteRow();
+  // Reset linea to 1 and personas to 10 on first open
+  if (confeccionados === 0) {
+    lineaSeleccionada = 1;
+    personasLinea = 10;
+    selLinea(1);
+    var pv = document.getElementById('modal-personas-val');
+    if (pv) pv.textContent = 10;
+  }
+  // Record start time
+  horaInicioConfeccion = new Date();
   estadosPedidos[pedido] = 'en_confeccion';
   document.getElementById('modal-confeccion').classList.add('open');
 }
@@ -1338,8 +1432,24 @@ function guardarConfeccion() {
   var pedidoNum = String(pedidoEnConfeccion.pedido || '');
   var producto = String(pedidoEnConfeccion.producto || '');
   var cliente = String(pedidoEnConfeccion.cliente || '');
+  var horaFin = new Date();
+  var minutos = horaInicioConfeccion ? Math.round((horaFin - horaInicioConfeccion) / 60000) : 0;
+  function fmtHora(d) {
+    return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  }
+  var inicioStr = horaInicioConfeccion ? fmtHora(horaInicioConfeccion) : '';
+  var finStr = fmtHora(horaFin);
 
-  var body = '{"pedido":"' + pedidoNum + '","producto":"' + producto.replace(/"/g,'\\"') + '","cliente":"' + cliente.replace(/"/g,'\\"') + '","palet":"' + palet + '","lotes":[';
+  var body = '{"pedido":"' + pedidoNum + '"' +
+    ',"producto":"' + producto.replace(/"/g,'\\"') + '"' +
+    ',"cliente":"' + cliente.replace(/"/g,'\\"') + '"' +
+    ',"palet":"' + palet + '"' +
+    ',"linea":' + lineaSeleccionada +
+    ',"personas":' + personasLinea +
+    ',"inicio":"' + inicioStr + '"' +
+    ',"fin":"' + finStr + '"' +
+    ',"minutos":' + minutos +
+    ',"lotes":[';
   for (var j = 0; j < lotes.length; j++) {
     if (j > 0) body += ',';
     body += '{"lote":"' + String(lotes[j].lote).replace(/"/g,'\\"') + '","kg_usados":' + lotes[j].kg_usados + ',"kg_destrio":' + lotes[j].kg_destrio + '}';
@@ -1357,9 +1467,24 @@ function guardarConfeccion() {
         try {
           var resp = JSON.parse(xhr.responseText);
           if (resp.ok) {
-            estadosPedidos[pedidoEnConfeccion.pedido] = 'confeccionado';
-            cerrarModalConfeccion();
-            renderPedidosFecha();
+            var ped = pedidoEnConfeccion.pedido;
+            var total = pedidoEnConfeccion.totalPalets || 0;
+            confeccionadosPorPedido[ped] = (confeccionadosPorPedido[ped] || 0) + 1;
+            var hecho = confeccionadosPorPedido[ped];
+            if (total > 0 && hecho < total) {
+              // More palets to go - reset and reopen
+              document.getElementById('modal-palet').value = hecho + 1;
+              document.getElementById('modal-lotes-container').innerHTML = '';
+              addLoteRow();
+              var counterEl = document.getElementById('modal-palet-counter');
+              counterEl.textContent = (hecho + 1) + ' de ' + total + ' palets';
+              saveBtn.textContent = '\u2713 Guardar y marcar Confeccionado';
+              saveBtn.disabled = false;
+            } else {
+              estadosPedidos[ped] = 'confeccionado';
+              cerrarModalConfeccion();
+              renderPedidosFecha();
+            }
           } else {
             alert('Error servidor: ' + (resp.error || 'desconocido'));
           }
@@ -1391,7 +1516,29 @@ document.getElementById('modal-confeccion').addEventListener('click', function(e
     <div class="modal-title" id="modal-conf-title">Confeccionar Pedido</div>
     <div class="modal-sub" id="modal-conf-sub"></div>
 
-    <label class="modal-label">N&#250;mero de Palet</label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div>
+        <label class="modal-label">L&#237;nea</label>
+        <div style="display:flex;gap:6px">
+          <button id="btn-linea-1" onclick="selLinea(1)" style="flex:1;padding:10px 0;border-radius:8px;border:2px solid var(--verde-vivo);background:var(--verde);color:#fff;font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer">L1</button>
+          <button id="btn-linea-2" onclick="selLinea(2)" style="flex:1;padding:10px 0;border-radius:8px;border:1px solid var(--borde2);background:var(--card);color:var(--texto2);font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer">L2</button>
+          <button id="btn-linea-3" onclick="selLinea(3)" style="flex:1;padding:10px 0;border-radius:8px;border:1px solid var(--borde2);background:var(--card);color:var(--texto2);font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer">L3</button>
+        </div>
+      </div>
+      <div>
+        <label class="modal-label">Personas en l&#237;nea</label>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:2px">
+          <button onclick="ajustarPersonasLinea(-1)" style="background:var(--card2);border:1px solid var(--borde2);color:var(--texto);border-radius:6px;padding:6px 12px;cursor:pointer;font-size:1.1rem;line-height:1">-</button>
+          <span id="modal-personas-val" style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.4rem;color:var(--verde-vivo);min-width:32px;text-align:center">10</span>
+          <button onclick="ajustarPersonasLinea(1)" style="background:var(--card2);border:1px solid var(--borde2);color:var(--texto);border-radius:6px;padding:6px 12px;cursor:pointer;font-size:1.1rem;line-height:1">+</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px">
+      <label class="modal-label" style="margin-bottom:0">N&#250;mero de Palet</label>
+      <span id="modal-palet-counter" style="font-family:'DM Mono',monospace;font-size:0.65rem;color:var(--verde-vivo);display:none"></span>
+    </div>
     <input class="modal-input" type="text" id="modal-palet" placeholder="Ej: 1" inputmode="numeric">
 
     <label class="modal-label" style="margin-top:4px">Lotes utilizados</label>
