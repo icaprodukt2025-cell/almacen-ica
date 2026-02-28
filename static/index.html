@@ -433,6 +433,25 @@ textarea::placeholder { color:var(--texto3); }
 .loading-state { text-align:center; padding:40px 20px; color:var(--texto3); }
 .spinner { width:24px; height:24px; border:2px solid var(--borde2); border-top-color:var(--verde-vivo); border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 12px; }
 @keyframes spin { to { transform:rotate(360deg); } }
+
+/* DATE CAROUSEL */
+.date-carousel-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; padding:10px 16px; scrollbar-width:none; }
+.date-carousel-wrap::-webkit-scrollbar { display:none; }
+.date-carousel { display:flex; gap:8px; width:max-content; }
+.date-chip { display:flex; flex-direction:column; align-items:center; padding:8px 12px; border-radius:12px; border:1px solid var(--borde2); background:var(--card); cursor:pointer; min-width:52px; transition:all 0.2s; flex-shrink:0; }
+.date-chip:active { transform:scale(0.95); }
+.date-chip.active { background:var(--verde); border-color:var(--verde-vivo); }
+.date-chip.hoy { border-color:var(--verde-vivo); }
+.date-chip .chip-dia { font-family:'DM Mono',monospace; font-size:0.58rem; color:var(--texto3); text-transform:uppercase; letter-spacing:0.05em; }
+.date-chip.active .chip-dia { color:rgba(255,255,255,0.7); }
+.date-chip.hoy .chip-dia { color:var(--verde-vivo); }
+.date-chip .chip-num { font-family:'Syne',sans-serif; font-weight:800; font-size:1.2rem; color:var(--texto); line-height:1; }
+.date-chip.active .chip-num { color:#fff; }
+.date-chip .chip-mes { font-family:'DM Mono',monospace; font-size:0.55rem; color:var(--texto3); margin-top:1px; }
+.date-chip.active .chip-mes { color:rgba(255,255,255,0.7); }
+.date-chip .chip-count { font-size:0.5rem; font-family:'DM Mono',monospace; color:var(--verde-vivo); margin-top:2px; }
+.date-chip.active .chip-count { color:rgba(255,255,255,0.8); }
+
 </style>
 </head>
 <body>
@@ -531,10 +550,8 @@ textarea::placeholder { color:var(--texto3); }
       <div class="back-title">&#128230; Pedidos</div>
     </div>
   </div>
-  <div class="filter-tabs">
-    <div class="filter-tab active" onclick="filtrarPedidos('hoy', this)">Hoy</div>
-    <div class="filter-tab" onclick="filtrarPedidos('manana', this)">Manana</div>
-    <div class="filter-tab" onclick="filtrarPedidos('semana', this)">Semana</div>
+  <div class="date-carousel-wrap">
+    <div class="date-carousel" id="date-carousel"></div>
   </div>
   <div class="scroll-content" id="pedidos-list">
     <div class="loading-state"><div class="spinner"></div><p>Cargando pedidos...</p></div>
@@ -731,11 +748,72 @@ function getSemanaFechas() {
   return fechas;
 }
 
+// Date carousel state
+let fechaSeleccionada = null; // 'dd/mm/yyyy'
+let todasLasFechas = []; // fechas disponibles en el sheet
+
+function initDateCarousel(diasData) {
+  const hoy = getFechaHoy();
+  // Get all dates from sheet, sorted
+  const fechasSheet = Object.keys(diasData).sort((a, b) => {
+    const pa = a.split('/'), pb = b.split('/');
+    const da = new Date(pa[2], pa[1]-1, pa[0]);
+    const db = new Date(pb[2], pb[1]-1, pb[0]);
+    return da - db;
+  });
+
+  // Center around today: 30 days back, all future
+  const hoyDate = new Date();
+  todasLasFechas = fechasSheet;
+
+  // Set default selection to today or nearest future date
+  if (!fechaSeleccionada) {
+    fechaSeleccionada = fechasSheet.find(f => {
+      const p = f.split('/');
+      const d = new Date(p[2], p[1]-1, p[0]);
+      return d >= new Date(hoyDate.getFullYear(), hoyDate.getMonth(), hoyDate.getDate());
+    }) || fechasSheet[fechasSheet.length-1];
+  }
+
+  const carousel = document.getElementById('date-carousel');
+  carousel.innerHTML = '';
+
+  const DIAS = ['Dom','Lun','Mar','Mie','Jue','Vie','Sab'];
+  const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+  todasLasFechas.forEach(fecha => {
+    const p = fecha.split('/');
+    const d = new Date(p[2], p[1]-1, p[0]);
+    const esHoy = fecha === hoy;
+    const count = (diasData[fecha] || []).length;
+
+    const chip = document.createElement('div');
+    chip.className = 'date-chip' + (esHoy ? ' hoy' : '') + (fecha === fechaSeleccionada ? ' active' : '');
+    chip.innerHTML =
+      '<span class="chip-dia">' + DIAS[d.getDay()] + '</span>' +
+      '<span class="chip-num">' + p[0] + '</span>' +
+      '<span class="chip-mes">' + MESES[d.getMonth()] + '</span>' +
+      (count > 0 ? '<span class="chip-count">' + count + ' ped</span>' : '');
+
+    chip.addEventListener('click', function() {
+      fechaSeleccionada = fecha;
+      document.querySelectorAll('.date-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      renderPedidosFecha();
+    });
+
+    carousel.appendChild(chip);
+  });
+
+  // Scroll to selected chip
+  setTimeout(() => {
+    const activeChip = carousel.querySelector('.date-chip.active');
+    if (activeChip) activeChip.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }, 100);
+}
+
 function filtrarPedidos(filtro, el) {
-  filtroActualPedidos = filtro;
-  document.querySelectorAll('#screen-pedidos .filter-tab').forEach(t => t.classList.remove('active'));
-  el.classList.add('active');
-  renderPedidos();
+  // Legacy - no longer used
 }
 function filtrarCargas(filtro, el) {
   filtroActualCargas = filtro;
@@ -744,6 +822,8 @@ function filtrarCargas(filtro, el) {
   renderCargas();
 }
 
+
+let pedidosDataCache = null;
 
 async function renderPedidos() {
   const container = document.getElementById('pedidos-list');
@@ -757,23 +837,24 @@ async function renderPedidos() {
       return;
     }
 
-    const hoy = getFechaHoy();
-    const manana = getFechaManana();
-    const semana = getSemanaFechas();
+    pedidosDataCache = data.dias || {};
+    initDateCarousel(pedidosDataCache);
+    renderPedidosFecha();
+  } catch(e) {
+    container.innerHTML = '<div class="empty-state"><p>Error: ' + e.message + '</p></div>';
+  }
+}
 
-    let pedidosFiltrados = [];
-    Object.entries(data.dias || {}).forEach(([fecha, peds]) => {
-      if (filtroActualPedidos === 'hoy' && fecha !== hoy) return;
-      if (filtroActualPedidos === 'manana' && fecha !== manana) return;
-      if (filtroActualPedidos === 'semana' && !semana.includes(fecha)) return;
-      peds.forEach(p => pedidosFiltrados.push({ ...p, fecha_salida: fecha }));
-    });
+function renderPedidosFecha() {
+  const container = document.getElementById('pedidos-list');
+  if (!pedidosDataCache || !fechaSeleccionada) return;
 
-    if (pedidosFiltrados.length === 0) {
-      const fechasDisp = Object.keys(data.dias || {}).slice(0,5).join(', ');
-      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#128230;</div><p>No hay pedidos para este filtro</p><p style="font-size:0.65rem;color:var(--texto3);margin-top:8px">Hoy: ' + hoy + '</p><p style="font-size:0.65rem;color:var(--texto3)">Fechas: ' + fechasDisp + '</p></div>';
-      return;
-    }
+  const pedidosFiltrados = (pedidosDataCache[fechaSeleccionada] || []).map(p => ({ ...p, fecha_salida: fechaSeleccionada }));
+
+  if (pedidosFiltrados.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#128230;</div><p>Sin pedidos para esta fecha</p></div>';
+    return;
+  }
 
     container.innerHTML = '';
     pedidosFiltrados.forEach((p, idx) => {
@@ -854,9 +935,6 @@ async function renderPedidos() {
       container.appendChild(card);
     });
 
-  } catch(e) {
-    container.innerHTML = '<div class="empty-state"><p>Error: ' + e.message + '</p></div>';
-  }
 }
 
 // ===== AJUSTE PERSONAS PLANIFICACION =====
