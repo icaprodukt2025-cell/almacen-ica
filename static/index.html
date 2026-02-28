@@ -1333,27 +1333,35 @@ async function guardarConfeccion() {
   saveBtn.disabled = true;
 
   try {
+    // Limpiar strings para evitar problemas con caracteres especiales
+    function limpiar(s) { return s ? String(s).replace(/[^\x20-\x7E\xC0-\xFF]/g, '').trim() : ''; }
+    const payload = {
+      pedido: limpiar(pedidoEnConfeccion.pedido),
+      producto: limpiar(pedidoEnConfeccion.producto),
+      cliente: limpiar(pedidoEnConfeccion.cliente),
+      palet: limpiar(palet),
+      lotes: lotes.map(l => ({
+        lote: limpiar(l.lote),
+        kg_usados: Number(l.kg_usados) || 0,
+        kg_destrio: Number(l.kg_destrio) || 0
+      }))
+    };
+    const bodyStr = JSON.stringify(payload);
     const res = await fetch('/api/confeccion', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        pedido: pedidoEnConfeccion.pedido,
-        producto: pedidoEnConfeccion.producto,
-        cliente: pedidoEnConfeccion.cliente,
-        palet: palet,
-        lotes: lotes
-      })
+      body: bodyStr
     });
     const data = await res.json();
     if (data.ok) {
       estadosPedidos[pedidoEnConfeccion.pedido] = 'confeccionado';
       cerrarModalConfeccion();
-      renderPedidos();
+      renderPedidosFecha();
     } else {
-      alert('Error: ' + (data.error || 'desconocido'));
+      alert('Error servidor: ' + (data.error || 'desconocido'));
     }
   } catch(e) {
-    alert('Error de conexion: ' + e.message);
+    alert('Error: ' + e.message + ' | ' + e.name);
   } finally {
     saveBtn.textContent = '\u2713 Guardar y marcar Confeccionado';
     saveBtn.disabled = false;
