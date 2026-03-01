@@ -865,8 +865,9 @@ function goTo(screen) {
               pedidosAsignados = {};
               d.items.forEach(function(it) {
                 if (it.pedido && it.estado !== 'anulado' && it.estado !== 'finalizado') {
-                  if (!pedidosAsignados[it.pedido]) pedidosAsignados[it.pedido] = [];
-                  pedidosAsignados[it.pedido].push(it.palet);
+                  var k = it.pedido + '|' + (it.producto || '');
+                  if (!pedidosAsignados[k]) pedidosAsignados[k] = [];
+                  pedidosAsignados[k].push(it.palet);
                 }
               });
             }
@@ -1168,7 +1169,7 @@ function renderPedidosFecha() {
       btnAsgL.className = 'action-btn';
       btnAsgL.style.cssText = 'background:var(--azul);color:#fff;border:none;border-radius:8px;padding:8px 10px;font-family:Syne,sans-serif;font-weight:700;font-size:0.72rem;cursor:pointer;white-space:nowrap';
       // Check if already assigned
-      var yaAsignado = pedidosAsignados && pedidosAsignados[p.pedido];
+      var yaAsignado = pedidosAsignados && pedidosAsignados[p.pedido + '|' + (p.producto||'')];
       btnAsgL.textContent = yaAsignado ? '\u2713 Asignado' : '+ Asignar L';
       if (yaAsignado) { btnAsgL.style.background = 'var(--verde)'; btnAsgL.style.opacity = '0.7'; }
       (function(pp) {
@@ -1206,10 +1207,11 @@ function renderPedidosFecha() {
         card.style.boxShadow = '0 0 8px rgba(41,121,255,0.3)';
       }
       // Show assigned badge
-      if (pedidosAsignados && pedidosAsignados[p.pedido] && pedidosAsignados[p.pedido].length > 0) {
+      var manKey = p.pedido + '|' + (p.producto || '');
+      if (pedidosAsignados && pedidosAsignados[manKey] && pedidosAsignados[manKey].length > 0) {
         var badge = document.createElement('div');
         badge.style.cssText = 'background:rgba(41,121,255,0.15);border-top:1px solid var(--azul);padding:5px 14px;font-family:DM Mono,monospace;font-size:0.6rem;color:var(--azul)';
-        badge.textContent = '\u23f3 ' + pedidosAsignados[p.pedido].length + ' palet(s) en cola de manipulado';
+        badge.textContent = '\u23f3 ' + pedidosAsignados[manKey].length + ' palet(s) en cola';
         card.appendChild(badge);
       }
 
@@ -2251,8 +2253,9 @@ function cargarManipulado() {
           pedidosAsignados = {};
           data.items.forEach(function(it) {
             if (it.pedido && it.estado !== 'anulado' && it.estado !== 'finalizado') {
-              if (!pedidosAsignados[it.pedido]) pedidosAsignados[it.pedido] = [];
-              pedidosAsignados[it.pedido].push(it.palet);
+              var k = it.pedido + '|' + (it.producto || '');
+              if (!pedidosAsignados[k]) pedidosAsignados[k] = [];
+              pedidosAsignados[k].push(it.palet);
             }
           });
           renderLineasPanel();
@@ -2394,6 +2397,7 @@ function confirmarAsignar() {
   // Check duplicate: same pedido + same palet number
   var yaExiste = manData.some(function(it) {
     return String(it.pedido) === String(p.pedido) &&
+           String(it.producto) === String(p.producto || '') &&
            String(it.palet) === String(palet) &&
            it.estado !== 'anulado' && it.estado !== 'finalizado';
   });
