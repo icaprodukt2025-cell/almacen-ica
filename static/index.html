@@ -87,7 +87,7 @@ header::after {
 .alert-badge { background:var(--rojo); color:#fff; border-radius:20px; padding:2px 8px; font-size:0.65rem; font-family:'DM Mono',monospace; font-weight:500; }
 
 /* SCREENS */
-.screen { display:none; flex:1; flex-direction:column; overflow:hidden; }
+.screen { display:none; flex-direction:column; overflow:hidden; height:100dvh; }
 .screen.active { display:flex; }
 
 /* HOME MENU */
@@ -586,8 +586,11 @@ textarea::placeholder { color:var(--texto3); }
       <div class="back-title">&#128666; Cargas</div>
     </div>
   </div>
-  <div class="filter-tabs">
-    <div class="filter-tab active" onclick="filtrarCargas('hoy', this)">Hoy</div>
+  <div class="date-carousel-wrap">
+    <div class="date-carousel" id="date-carousel-cargas"></div>
+  </div>
+  <div class="filter-tabs" style="border-top:none">
+    <div class="filter-tab active" onclick="filtrarCargas('todos', this)">Todos</div>
     <div class="filter-tab" onclick="filtrarCargas('pendiente', this)">Pendientes</div>
     <div class="filter-tab" onclick="filtrarCargas('cargado', this)">Cargados</div>
   </div>
@@ -610,14 +613,14 @@ textarea::placeholder { color:var(--texto3); }
         <span style="font-family:'DM Mono',monospace;font-size:0.5rem;color:var(--texto3);letter-spacing:0.1em;text-transform:uppercase">Inicio jornada</span>
         <div style="display:flex;align-items:center;gap:6px;margin-top:2px">
           <button onclick="cambiarHoraInicio(-1)" style="background:var(--card2);border:1px solid var(--borde2);color:var(--texto2);font-size:1rem;cursor:pointer;padding:0 6px;border-radius:4px;line-height:1.4">-</button>
-          <span id="horaInicioDisplay" style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.1rem;color:var(--verde-vivo);min-width:40px;text-align:center">9:00</span>
+          <span id="horaInicioDisplay" style="font-family:Syne,sans-serif;font-weight:800;font-size:1.1rem;color:var(--verde-vivo);min-width:40px;text-align:center">9:00</span>
           <button onclick="cambiarHoraInicio(1)" style="background:var(--card2);border:1px solid var(--borde2);color:var(--texto2);font-size:1rem;cursor:pointer;padding:0 6px;border-radius:4px;line-height:1.4">+</button>
         </div>
       </div>
       <button class="sync-btn" onclick="cargarPlanificacion()">&#8634;</button>
     </div>
   </div>
-  <div class="scroll-content" id="plan-list">
+  <div class="scroll-content" id="plan-list" style="overflow-y:auto;flex:1;min-height:0">
     <div class="loading-state"><div class="spinner"></div><p>Calculando planificacion...</p></div>
   </div>
 </div>
@@ -658,11 +661,28 @@ let estadosPedidos = {}; // { numPedido: 'pendiente'|'confeccionado'|'cargado' }
 
 // ===== ESTADO COMPARTIDO =====
 function saveEstado(pedido, tipo, valor) {
-  var body = JSON.stringify({ pedido: String(pedido), tipo: tipo, valor: valor });
-  var xhr = new XMLHttpRequest();
-  xhr.open('POST', '/api/estado', true);
-  xhr.setRequestHeader('Content-Type', 'application/json');
-  xhr.send(body);
+  try {
+    var payload = { pedido: String(pedido), tipo: String(tipo), valor: valor };
+    var body = JSON.stringify(payload);
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/estado', true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState === 4) {
+        if (xhr.status !== 200) {
+          console.error('saveEstado error:', xhr.status, xhr.responseText);
+        } else {
+          try {
+            var r = JSON.parse(xhr.responseText);
+            if (!r.ok) console.error('saveEstado failed:', r.error);
+          } catch(e) {}
+        }
+      }
+    };
+    xhr.send(body);
+  } catch(e) {
+    console.error('saveEstado exception:', e);
+  }
 }
 
 function loadEstado(callback) {
@@ -713,7 +733,7 @@ function goTo(screen) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('screen-' + screen).classList.add('active');
   if (screen === 'pedidos') { loadEstado(function() { renderPedidos(); setTimeout(actualizarBannerPalet, 200); }); }
-  if (screen === 'cargas') renderCargas();
+  if (screen === 'cargas') { loadEstado(function() { renderCargas(); }); }
   if (screen === 'planificacion') cargarPlanificacion();
 }
 
@@ -908,9 +928,9 @@ function actualizarStatPedidos(diasData) {
 }
 function filtrarCargas(filtro, el) {
   filtroActualCargas = filtro;
-  document.querySelectorAll('#screen-cargas .filter-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('#screen-cargas .filter-tab').forEach(function(t) { t.classList.remove('active'); });
   el.classList.add('active');
-  renderCargas();
+  if (cargasDataCache) { renderCargasFecha(); } else { renderCargas(); }
 }
 
 
@@ -1070,101 +1090,139 @@ function marcarEstado(numeroPedido, nuevoEstado, cardId) {
 }
 
 
+// Cargas date state (mirrors pedidos carousel)
+var fechaSeleccionadaCargas = null;
+var cargasDataCache = null;
+
+function initDateCarouselCargas(diasData) {
+  var hoy = getFechaHoy();
+  var fechasSheet = Object.keys(diasData).sort(function(a, b) {
+    var pa = a.split('/'), pb = b.split('/');
+    return new Date(pa[2], pa[1]-1, pa[0]) - new Date(pb[2], pb[1]-1, pb[0]);
+  });
+
+  if (!fechaSeleccionadaCargas) {
+    fechaSeleccionadaCargas = fechasSheet.find(function(f) {
+      var p = f.split('/');
+      return new Date(p[2], p[1]-1, p[0]) >= new Date();
+    }) || fechasSheet[fechasSheet.length-1];
+  }
+
+  var carousel = document.getElementById('date-carousel-cargas');
+  if (!carousel) return;
+  carousel.innerHTML = '';
+
+  var DIAS = ['Dom','Lun','Mar','Mie','Jue','Vie','Sab'];
+  var MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+  fechasSheet.forEach(function(fecha) {
+    var p = fecha.split('/');
+    var d = new Date(p[2], p[1]-1, p[0]);
+    var esHoy = fecha === hoy;
+    var count = (diasData[fecha] || []).length;
+    var cargados = (diasData[fecha] || []).filter(function(c) { return estadosCargas[c.pedido]; }).length;
+
+    var chip = document.createElement('div');
+    chip.className = 'date-chip' + (esHoy ? ' hoy' : '') + (fecha === fechaSeleccionadaCargas ? ' active' : '');
+    chip.innerHTML =
+      '<span class="chip-dia">' + DIAS[d.getDay()] + '</span>' +
+      '<span class="chip-num">' + p[0] + '</span>' +
+      '<span class="chip-mes">' + MESES[d.getMonth()] + '</span>' +
+      (count > 0 ? '<span class="chip-count">' + cargados + '/' + count + '</span>' : '');
+
+    chip.addEventListener('click', function() {
+      fechaSeleccionadaCargas = fecha;
+      document.querySelectorAll('#date-carousel-cargas .date-chip').forEach(function(c) { c.classList.remove('active'); });
+      chip.classList.add('active');
+      renderCargasFecha();
+    });
+    carousel.appendChild(chip);
+  });
+
+  setTimeout(function() {
+    var active = carousel.querySelector('.date-chip.active');
+    if (active) active.scrollIntoView({ behavior:'smooth', inline:'center', block:'nearest' });
+  }, 100);
+}
+
+function renderCargasFecha() {
+  var container = document.getElementById('cargas-list');
+  if (!cargasDataCache || !fechaSeleccionadaCargas) return;
+
+  var todosItems = (cargasDataCache[fechaSeleccionadaCargas] || []);
+  var totalHoy = todosItems.length;
+  var cargadosN = todosItems.filter(function(c) { return estadosCargas[c.pedido]; }).length;
+  var pendientesN = totalHoy - cargadosN;
+
+  document.getElementById('statCargasHoy').textContent = cargadosN + '/' + totalHoy;
+  var summaryEl = document.getElementById('cargas-summary');
+  if (summaryEl) {
+    summaryEl.innerHTML =
+      '<span style="color:var(--verde-vivo)">&#10003; ' + cargadosN + ' cargados</span>' +
+      '<span style="color:var(--texto3)">&nbsp;&#183;&nbsp;</span>' +
+      '<span style="color:var(--amarillo)">' + pendientesN + ' pendientes</span>';
+  }
+
+  var items = todosItems.slice();
+  if (filtroActualCargas === 'pendiente') items = items.filter(function(c) { return !estadosCargas[c.pedido]; });
+  if (filtroActualCargas === 'cargado') items = items.filter(function(c) { return estadosCargas[c.pedido]; });
+
+  if (items.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#128666;</div><p>' +
+      (filtroActualCargas === 'cargado' ? 'Ninguno cargado aun' : 'Todos cargados &#10003;') + '</p></div>';
+    return;
+  }
+  container.innerHTML = '';
+  items.forEach(function(c) {
+    var cargado = estadosCargas[c.pedido];
+    var card = document.createElement('div');
+    card.className = 'pedido-card';
+    card.style.borderLeft = cargado ? '3px solid var(--verde-vivo)' : '3px solid var(--borde2)';
+    card.innerHTML =
+      '<div style="display:flex;justify-content:space-between;align-items:center">' +
+        '<div>' +
+          '<span style="font-family:Syne,sans-serif;font-weight:800;color:var(--verde-vivo)">#' + c.pedido + '</span>' +
+          '<span style="font-size:0.75rem;color:var(--texto2);margin-left:8px">' + (c.producto || '') + '</span>' +
+        '</div>' +
+        (c.matricula ? '<span style="font-family:DM Mono,monospace;font-size:0.65rem;color:var(--texto3)">' + c.matricula + '</span>' : '') +
+      '</div>' +
+      '<div style="font-size:0.7rem;color:var(--texto3);margin-top:4px">' + (c.cliente || '') + (c.palets ? ' &middot; ' + c.palets + ' pal' : '') + '</div>' +
+      '<div style="display:flex;gap:8px;margin-top:8px">' +
+        '<button class="action-btn ' + (cargado ? 'verde' : '') + '" id="btn-carg-' + c.pedido + '">' +
+          (cargado ? '&#10003; Cargado' : '&#128666; Marcar Cargado') +
+        '</button>' +
+      '</div>';
+    var btn = card.querySelector('#btn-carg-' + c.pedido);
+    if (btn) {
+      (function(pedido) {
+        btn.addEventListener('click', function() { marcarEstado(pedido, 'cargado', null); setTimeout(renderCargasFecha, 100); });
+      })(c.pedido);
+    }
+    container.appendChild(card);
+  });
+}
+
 async function renderCargas() {
   const container = document.getElementById('cargas-list');
   container.innerHTML = '<div class="loading-state"><div class="spinner"></div><p>Cargando cargas...</p></div>';
-
   try {
-    const res = await fetch('/api/cargas');
+    // Reuse planificacion data for all dates
+    const res = await fetch('/api/planificacion');
     const data = await res.json();
+    if (data.error) { container.innerHTML = '<div class="empty-state"><p>' + data.error + '</p></div>'; return; }
 
-    if (data.error) { container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">??</div><p>' + data.error + '</p></div>'; return; }
-
-    var todosItems = data.cargas || [];
-    var totalHoy = todosItems.length;
-    var cargados = todosItems.filter(function(c) { return estadosCargas[c.pedido]; }).length;
-    var pendientes = totalHoy - cargados;
-
-    // Update stat
-    document.getElementById('statCargasHoy').textContent = cargados + '/' + totalHoy;
-
-    // Summary bar
-    var summaryEl = document.getElementById('cargas-summary');
-    if (summaryEl) {
-      summaryEl.innerHTML =
-        '<span style="color:var(--verde-vivo)">&#10003; ' + cargados + ' cargados</span>' +
-        '<span style="color:var(--texto3)">&nbsp;&#183;&nbsp;</span>' +
-        '<span style="color:var(--amarillo)">' + pendientes + ' pendientes</span>';
-    }
-
-    var items = todosItems.slice();
-    if (filtroActualCargas === 'pendiente') items = items.filter(function(c) { return !estadosCargas[c.pedido]; });
-    if (filtroActualCargas === 'cargado') items = items.filter(function(c) { return estadosCargas[c.pedido]; });
-
-    if (items.length === 0) {
-      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#128666;</div><p>' +
-        (filtroActualCargas === 'cargado' ? 'Ninguno cargado aun' : 'Todos cargados &#10003;') + '</p></div>';
-      return;
-    }
-
-    container.innerHTML = '';
-    items.forEach(c => {
-      const cargado = estadosCargas[c.pedido];
-
-      const div = document.createElement('div');
-      div.className = 'carga-card' + (cargado ? ' cargado' : '');
-
-      const matriculaBadge = c.matricula && c.matricula.trim() ? c.matricula : 'RECOGIDA';
-      const paletsTxt = c.palets ? ' &#183; ' + c.palets + ' pal' : '';
-
-      div.innerHTML =
-        '<div class="carga-header">' +
-          '<div class="carga-matricula">' + matriculaBadge + '</div>' +
-          '<div class="carga-main">' +
-            '<div class="carga-pedido">Pedido #' + c.pedido + '</div>' +
-            '<div class="carga-mercancia">' + (c.mercancia || c.producto || c.destino || '') + '</div>' +
-            '<div class="carga-transportista">' + (c.transportista || '') + paletsTxt + '</div>' +
-          '</div>' +
-          '<button class="cargar-btn' + (cargado ? ' cargado' : '') + '" id="btn-carga-' + c.pedido + '">' +
-            (cargado ? '&#10003; Cargado' : 'Cargar') +
-          '</button>' +
-        '</div>';
-
-      div.querySelector('.cargar-btn').addEventListener('click', function() {
-        estadosCargas[c.pedido] = !estadosCargas[c.pedido];
-        renderCargas();
-      });
-
-      container.appendChild(div);
+    // Build cargas data from pedidos (same structure as diasData but keyed by fecha)
+    cargasDataCache = {};
+    Object.entries(data.dias || {}).forEach(([fecha, peds]) => {
+      cargasDataCache[fecha] = peds;
     });
 
+    initDateCarouselCargas(cargasDataCache);
+    renderCargasFecha();
   } catch(e) {
-    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">??</div><p>Error cargando datos</p></div>';
+    container.innerHTML = '<div class="empty-state"><p>Error: ' + e.message + '</p></div>';
   }
 }
-
-function marcarCargado(numPedido, btn) {
-  estadosCargas[numPedido] = !estadosCargas[numPedido];
-  renderCargas();
-}
-
-// ===== PLANIFICACION =====
-function buscarEstandar(nombre) {
-  const n = nombre.toUpperCase().trim();
-  if (ESTANDARES[n]) return ESTANDARES[n];
-  let mejor = null, mejorScore = 0;
-  for (const key of Object.keys(ESTANDARES)) {
-    const palabras = n.split(' ').filter(p => p.length > 2);
-    const matches = palabras.filter(p => key.includes(p)).length;
-    const score = matches / Math.max(palabras.length, 1);
-    if (score > mejorScore && score > 0.4) { mejorScore = score; mejor = key; }
-  }
-  return mejor ? ESTANDARES[mejor] : null;
-}
-
-// Ajuste manual de personas por dia (clave = fecha)
-const personasAjuste = {};
-
 async function cargarPlanificacion() {
   const container = document.getElementById('plan-list');
   container.innerHTML = '<div class="loading-state"><div class="spinner"></div><p>Calculando...</p></div>';
@@ -1527,7 +1585,7 @@ function actualizarBannerPalet() {
 
     var crono = document.createElement('div');
     crono.id = 'banner-crono-' + pedido;
-    crono.style.cssText = "font-family:'Syne',sans-serif;font-weight:800;font-size:1.3rem;color:var(--azul);min-width:52px;text-align:right";
+    crono.style.cssText = "font-family:Syne,sans-serif;font-weight:800;font-size:1.3rem;color:var(--azul);min-width:52px;text-align:right";
     crono.textContent = '00:00';
 
     var btn = document.createElement('button');
@@ -1627,6 +1685,141 @@ function addLoteRowFin() {
     '<button class="btn-del-lote" onclick="this.parentElement.remove()">&#10005;</button>';
   container.appendChild(row);
 }
+
+function guardarLotes() {
+  // Save lotes intermediately without finalizing - just POST to confeccion with fin=null
+  var key = pedidoEnConfeccion ? pedidoEnConfeccion._key : null;
+  var info = key ? paletActivoInfo[key] : null;
+  if (!info) { alert('No hay palet activo'); return; }
+
+  var lotes = [];
+  var rows = document.querySelectorAll('#fin-lotes-container .lote-row');
+  for (var i = 0; i < rows.length; i++) {
+    var inputs = rows[i].querySelectorAll('input');
+    var loteVal = inputs[0].value.trim();
+    var kgU = parseFloat(String(inputs[1].value).replace(',','.')) || 0;
+    var kgD = parseFloat(String(inputs[2].value).replace(',','.')) || 0;
+    if (loteVal) lotes.push({ lote: loteVal, kg_usados: kgU, kg_destrio: kgD });
+  }
+
+  if (lotes.length === 0) { alert('Introduce al menos un lote'); return; }
+
+  var saveBtn = document.querySelector('#modal-finalizar .modal-save');
+  var origText = saveBtn ? saveBtn.textContent : '';
+  if (saveBtn) { saveBtn.textContent = 'Guardando...'; saveBtn.disabled = true; }
+
+  var body = JSON.stringify({
+    pedido: String(pedidoEnConfeccion.pedido || ''),
+    producto: String(pedidoEnConfeccion.producto || ''),
+    cliente: String(pedidoEnConfeccion.cliente || ''),
+    palet: String(info.palet || ''),
+    linea: info.linea,
+    personas: info.personas,
+    inicio: '',
+    fin: '',
+    minutos: 0,
+    lotes: lotes,
+    parcial: true
+  });
+
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/confeccion', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === 4) {
+      if (saveBtn) { saveBtn.textContent = origText; saveBtn.disabled = false; }
+      if (xhr.status === 200) {
+        var resp = JSON.parse(xhr.responseText);
+        if (resp.ok) {
+          // Clear lotes and add new empty row
+          document.getElementById('fin-lotes-container').innerHTML = '';
+          addLoteRowFin();
+          // Brief success feedback
+          saveBtn.textContent = '&#10003; Guardado';
+          setTimeout(function() { if (saveBtn) saveBtn.textContent = origText; }, 1500);
+        } else {
+          alert('Error: ' + (resp.error || 'desconocido'));
+        }
+      } else {
+        alert('Error HTTP: ' + xhr.status);
+      }
+    }
+  };
+  xhr.send(body);
+}
+
+
+function getLotesFromFin() {
+  var lotes = [];
+  var rows = document.querySelectorAll('#fin-lotes-container .lote-row');
+  for (var i = 0; i < rows.length; i++) {
+    var inputs = rows[i].querySelectorAll('input');
+    var loteVal = inputs[0].value.trim();
+    var kgU = parseFloat(String(inputs[1].value).replace(',','.')) || 0;
+    var kgD = parseFloat(String(inputs[2].value).replace(',','.')) || 0;
+    if (loteVal) lotes.push({ lote: loteVal, kg_usados: kgU, kg_destrio: kgD });
+  }
+  return lotes;
+}
+
+function soloGuardarLotes() {
+  // Save lotes to Sheet without finalizing the palet
+  var key = pedidoEnConfeccion ? pedidoEnConfeccion._key : null;
+  var info = key ? paletActivoInfo[key] : null;
+  if (!info) { alert('No hay palet activo'); return; }
+
+  var lotes = getLotesFromFin();
+  if (lotes.length === 0) { alert('Introduce al menos un lote'); return; }
+
+  var btn = document.querySelector('#modal-finalizar .modal-save');
+  btn.textContent = 'Guardando...';
+  btn.disabled = true;
+
+  var now = new Date();
+  function fmtH(d) { return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); }
+
+  var body = JSON.stringify({
+    pedido: String(pedidoEnConfeccion.pedido || ''),
+    producto: String(pedidoEnConfeccion.producto || ''),
+    cliente: String(pedidoEnConfeccion.cliente || ''),
+    palet: String(info.palet || ''),
+    linea: info.linea,
+    personas: info.personas,
+    inicio: fmtH(info.inicio),
+    fin: '',
+    minutos: 0,
+    solo_lotes: true,
+    lotes: lotes
+  });
+
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/confeccion', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === 4) {
+      btn.textContent = '\u{1F4BE} Guardar lotes';
+      btn.disabled = false;
+      if (xhr.status === 200) {
+        try {
+          var resp = JSON.parse(xhr.responseText);
+          if (resp.ok) {
+            // Clear lotes and show confirmation
+            document.getElementById('fin-lotes-container').innerHTML = '';
+            addLoteRowFin();
+            btn.textContent = '\u2713 Guardado!';
+            setTimeout(function() { btn.textContent = '\u{1F4BE} Guardar lotes'; }, 2000);
+          } else {
+            alert('Error: ' + (resp.error || 'desconocido'));
+          }
+        } catch(e) { alert('Error: ' + xhr.responseText); }
+      } else {
+        alert('Error HTTP: ' + xhr.status);
+      }
+    }
+  };
+  xhr.send(body);
+}
+
 
 function guardarConfeccion() {
   var key = pedidoEnConfeccion._key;
@@ -1756,7 +1949,7 @@ window.addEventListener('DOMContentLoaded', function() {
         <label class="modal-label">Personas</label>
         <div style="display:flex;align-items:center;gap:8px;margin-top:2px">
           <button onclick="ajustarPersonasLinea(-1)" style="background:var(--card2);border:1px solid var(--borde2);color:var(--texto);border-radius:6px;padding:6px 12px;cursor:pointer;font-size:1.1rem;line-height:1">-</button>
-          <span id="modal-personas-val" style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.4rem;color:var(--verde-vivo);min-width:32px;text-align:center">10</span>
+          <span id="modal-personas-val" style="font-family:Syne,sans-serif;font-weight:800;font-size:1.4rem;color:var(--verde-vivo);min-width:32px;text-align:center">10</span>
           <button onclick="ajustarPersonasLinea(1)" style="background:var(--card2);border:1px solid var(--borde2);color:var(--texto);border-radius:6px;padding:6px 12px;cursor:pointer;font-size:1.1rem;line-height:1">+</button>
         </div>
       </div>
@@ -1781,7 +1974,7 @@ window.addEventListener('DOMContentLoaded', function() {
 
     <div style="text-align:center;padding:12px;background:var(--card);border:1px solid var(--verde-vivo);border-radius:10px;margin-bottom:14px">
       <div style="font-family:'DM Mono',monospace;font-size:0.58rem;color:var(--texto3);letter-spacing:0.1em;text-transform:uppercase">Tiempo transcurrido</div>
-      <div id="fin-tiempo-display" style="font-family:'Syne',sans-serif;font-weight:800;font-size:2rem;color:var(--verde-vivo);margin-top:2px">00:00</div>
+      <div id="fin-tiempo-display" style="font-family:Syne,sans-serif;font-weight:800;font-size:2rem;color:var(--verde-vivo);margin-top:2px">00:00</div>
       <div id="fin-inicio-display" style="font-family:'DM Mono',monospace;font-size:0.6rem;color:var(--texto3);margin-top:2px"></div>
     </div>
 
@@ -1789,7 +1982,10 @@ window.addEventListener('DOMContentLoaded', function() {
     <div id="fin-lotes-container"></div>
     <button class="btn-add-lote" onclick="addLoteRowFin()">+ A&#241;adir lote</button>
 
-    <button class="modal-save" onclick="guardarConfeccion()">&#10003; Guardar y finalizar</button>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px">
+      <button class="modal-save" onclick="soloGuardarLotes()" style="background:var(--azul)">&#128190; Guardar lotes</button>
+      <button class="modal-save" onclick="guardarConfeccion()">&#10003; Finalizar palet</button>
+    </div>
     <button class="modal-cancel" onclick="cerrarModalFinalizar()">Cancelar</button>
   </div>
 </div>
