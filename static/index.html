@@ -568,6 +568,8 @@ textarea::placeholder { color:var(--texto3); }
     <div>
       <div class="back-title">&#128230; Pedidos</div>
     </div>
+    <button onclick="document.getElementById('pdf-upload-input').click()" style="margin-left:auto;background:var(--azul);border:none;border-radius:8px;color:#fff;font-family:'Syne',sans-serif;font-weight:700;font-size:0.72rem;padding:7px 12px;cursor:pointer">&#43; Programa</button>
+    <input type="file" id="pdf-upload-input" accept=".pdf" style="display:none" onchange="importarProgramaPDF(this)">
   </div>
   <div class="date-carousel-wrap">
     <div class="date-carousel" id="date-carousel"></div>
@@ -1453,6 +1455,56 @@ function setGreeting() {
 setGreeting();
 sincronizar();
 setInterval(sincronizar, 5 * 60 * 1000);
+
+// ===== IMPORTAR PROGRAMA PDF =====
+function importarProgramaPDF(input) {
+  var file = input.files[0];
+  if (!file) return;
+  input.value = '';
+
+  var formData = new FormData();
+  formData.append('pdf', file);
+
+  // Show loading toast
+  mostrarToast('Importando programa...', 'info');
+
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/importar-programa', true);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === 4) {
+      try {
+        var resp = JSON.parse(xhr.responseText);
+        if (resp.ok) {
+          var msg = 'Programa ' + resp.programa + ' importado\n' +
+                    resp.pedidos_insertados + ' pedidos de ' + resp.producto + '\nCliente: ' + resp.cliente;
+          mostrarToast('\u2713 ' + resp.pedidos_insertados + ' pedidos importados', 'ok');
+          // Reload pedidos
+          setTimeout(function() {
+            pedidosDataCache = null;
+            renderPedidos();
+          }, 800);
+        } else {
+          mostrarToast('Error: ' + (resp.error || 'desconocido'), 'error');
+        }
+      } catch(e) {
+        mostrarToast('Error al procesar respuesta', 'error');
+      }
+    }
+  };
+  xhr.send(formData);
+}
+
+function mostrarToast(msg, tipo) {
+  var existing = document.getElementById('toast-msg');
+  if (existing) existing.remove();
+  var toast = document.createElement('div');
+  toast.id = 'toast-msg';
+  var bg = tipo === 'ok' ? 'var(--verde-vivo)' : tipo === 'error' ? '#e53935' : 'var(--azul)';
+  toast.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:' + bg + ';color:#fff;padding:12px 20px;border-radius:10px;font-family:DM Mono,monospace;font-size:0.75rem;z-index:9999;max-width:80vw;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.4)';
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(function() { if (toast.parentNode) toast.remove(); }, 3500);
+}
 
 // ===== MODAL CONFECCION =====
 let pedidoEnConfeccion = null;
