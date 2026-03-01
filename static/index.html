@@ -499,8 +499,24 @@ textarea::placeholder { color:var(--texto3); }
   <span class="alert-badge" id="alertBadge">0</span>
 </div>
 
+<!-- ===== LOGIN ===== -->
+<div class="screen active" id="screen-login" style="justify-content:center;align-items:center;padding:30px">
+  <div style="width:100%;max-width:340px">
+    <div style="text-align:center;margin-bottom:32px">
+      <div style="font-family:'Syne',sans-serif;font-weight:900;font-size:2rem;color:var(--verde-vivo);letter-spacing:-0.02em">ICA PRODUKT</div>
+      <div style="font-family:'DM Mono',monospace;font-size:0.65rem;color:var(--texto3);margin-top:6px;letter-spacing:0.1em;text-transform:uppercase">Almacen 2025</div>
+    </div>
+    <div id="login-error" style="display:none;background:rgba(229,57,53,0.15);border:1px solid #e53935;border-radius:8px;padding:10px;font-size:0.75rem;color:#e53935;margin-bottom:14px;text-align:center"></div>
+    <label class="modal-label">Usuario</label>
+    <input class="modal-input" type="text" id="login-user" placeholder="usuario" autocomplete="username" style="margin-bottom:12px">
+    <label class="modal-label">Contrase&#241;a</label>
+    <input class="modal-input" type="password" id="login-pass" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" autocomplete="current-password" style="margin-bottom:20px" onkeydown="if(event.key==='Enter') doLogin()">
+    <button id="login-btn" onclick="doLogin()" style="width:100%;padding:14px;background:var(--verde);border:none;border-radius:10px;color:#fff;font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;cursor:pointer">Entrar</button>
+  </div>
+</div>
+
 <!-- ===== HOME ===== -->
-<div class="screen active" id="screen-home">
+<div class="screen" id="screen-home">
   <div class="scroll-content home-screen">
     <div class="home-greeting">
       <h2 id="greetingTitle">Buenos dias</h2>
@@ -556,6 +572,22 @@ textarea::placeholder { color:var(--texto3); }
           </div>
           <span class="menu-arrow">&#8250;</span>
         </button>
+        <button class="menu-item" onclick="goTo('manipulado')">
+          <span class="menu-icon">&#127981;</span>
+          <div class="menu-info">
+            <div class="menu-title">Control Manipulado</div>
+            <div class="menu-desc">L&#237;neas, cola de trabajo y palets del d&#237;a</div>
+          </div>
+          <span class="menu-arrow">&#8250;</span>
+        </button>
+        <button class="menu-item" id="menu-informes" onclick="goTo('informes')" style="display:none">
+          <span class="menu-icon">&#128202;</span>
+          <div class="menu-info">
+            <div class="menu-title">Informes</div>
+            <div class="menu-desc">Costes y rendimiento de confeccion</div>
+          </div>
+          <span class="menu-arrow">&#8250;</span>
+        </button>
       </div>
     </div>
   </div>
@@ -568,7 +600,7 @@ textarea::placeholder { color:var(--texto3); }
     <div>
       <div class="back-title">&#128230; Pedidos</div>
     </div>
-    <button onclick="document.getElementById('pdf-upload-input').click()" style="margin-left:auto;background:var(--azul);border:none;border-radius:8px;color:#fff;font-family:'Syne',sans-serif;font-weight:700;font-size:0.72rem;padding:7px 12px;cursor:pointer">&#43; Programa</button>
+    <button onclick="document.getElementById('pdf-upload-input').click()" style="margin-left:auto;background:var(--azul);border:none;border-radius:8px;color:#fff;font-family:'Syne',sans-serif;font-weight:700;font-size:0.72rem;padding:7px 12px;cursor:pointer">&#43; PDF</button>
     <input type="file" id="pdf-upload-input" accept=".pdf" style="display:none" onchange="importarProgramaPDF(this)">
   </div>
   <div class="date-carousel-wrap">
@@ -661,6 +693,91 @@ let HORA_INICIO = 9; // Hora de inicio por defecto
 let appData = { pedidos: [], cargas: [], planificacion: {} };
 let estadosPedidos = {}; // { numPedido: 'pendiente'|'confeccionado'|'cargado' }
 
+// ===== AUTH =====
+var sessionToken = localStorage.getItem('ica_session_token') || '';
+var currentUser = null;
+
+function doLogin() {
+  var user = document.getElementById('login-user').value.trim();
+  var pass = document.getElementById('login-pass').value;
+  var errEl = document.getElementById('login-error');
+  var btn = document.getElementById('login-btn');
+  if (!user || !pass) { errEl.textContent = 'Introduce usuario y contraseña'; errEl.style.display='block'; return; }
+  btn.textContent = 'Entrando...';
+  btn.disabled = true;
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/login', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === 4) {
+      btn.textContent = 'Entrar';
+      btn.disabled = false;
+      try {
+        var resp = JSON.parse(xhr.responseText);
+        if (resp.ok) {
+          sessionToken = resp.token;
+          currentUser = { role: resp.role, nombre: resp.nombre };
+          localStorage.setItem('ica_session_token', sessionToken);
+          errEl.style.display = 'none';
+          onLoginSuccess();
+        } else {
+          errEl.textContent = resp.error || 'Error desconocido';
+          errEl.style.display = 'block';
+        }
+      } catch(e) { errEl.textContent = 'Error de conexion'; errEl.style.display='block'; }
+    }
+  };
+  xhr.send(JSON.stringify({ username: user, password: pass }));
+}
+
+function onLoginSuccess() {
+  // Show/hide features by role
+  var menuInformes = document.getElementById('menu-informes');
+  if (menuInformes && (currentUser.role === 'admin' || currentUser.role === 'jefa')) {
+    menuInformes.style.display = 'flex';
+  }
+  // Update header user display
+  var userEl = document.getElementById('header-user');
+  if (userEl) userEl.textContent = currentUser.nombre;
+  // Go to home
+  document.getElementById('screen-login').classList.remove('active');
+  document.getElementById('screen-home').classList.add('active');
+  sincronizar();
+}
+
+function checkSession() {
+  if (!sessionToken) { showLogin(); return; }
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', '/api/me', true);
+  xhr.setRequestHeader('X-Session-Token', sessionToken);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === 4) {
+      try {
+        var resp = JSON.parse(xhr.responseText);
+        if (resp.ok) {
+          currentUser = { role: resp.role, nombre: resp.nombre };
+          onLoginSuccess();
+        } else {
+          showLogin();
+        }
+      } catch(e) { showLogin(); }
+    }
+  };
+  xhr.send();
+}
+
+function showLogin() {
+  document.querySelectorAll('.screen').forEach(function(s) { s.classList.remove('active'); });
+  document.getElementById('screen-login').classList.add('active');
+}
+
+function doLogout() {
+  localStorage.removeItem('ica_session_token');
+  sessionToken = '';
+  currentUser = null;
+  showLogin();
+}
+
 // ===== ESTADO COMPARTIDO =====
 function saveEstado(pedido, tipo, valor) {
   try {
@@ -735,6 +852,8 @@ function goTo(screen) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('screen-' + screen).classList.add('active');
   if (screen === 'pedidos') { loadEstado(function() { renderPedidos(); setTimeout(actualizarBannerPalet, 200); }); }
+  if (screen === 'informes') { setTimeout(cargarInformes, 100); }
+  if (screen === 'manipulado') { goToManipulado(); }
   if (screen === 'cargas') { loadEstado(function() { renderCargas(); }); }
   if (screen === 'planificacion') cargarPlanificacion();
 }
@@ -1019,6 +1138,14 @@ function renderPedidosFecha() {
       btnConfecc.innerHTML = '&#9881; Confeccionar';
       btnConfecc.addEventListener('click', function(e) { e.stopPropagation(); abrirModalConfeccion(p.pedido, p.producto, p.cliente, p.bultos, p.palets); });
 
+      const btnAsgL = document.createElement('button');
+      btnAsgL.className = 'action-btn azul';
+      btnAsgL.innerHTML = '&#10011; Asignar L';
+      btnAsgL.style.cssText += 'background:var(--azul)!important';
+      (function(pp) {
+        btnAsgL.addEventListener('click', function(e) { e.stopPropagation(); abrirModalAsignar(pp.pedido, pp.producto, pp.cliente, pp.bultos); });
+      })(p);
+
       const btnConf = document.createElement('button');
       btnConf.className = 'action-btn amarillo' + (btnConfClass ? ' active' : '');
       btnConf.innerHTML = '&#10003; Confeccionado';
@@ -1031,6 +1158,7 @@ function renderPedidosFecha() {
 
       const actionBtns = document.createElement('div');
       actionBtns.className = 'action-btns';
+      actionBtns.appendChild(btnAsgL);
       actionBtns.appendChild(btnConfecc);
       actionBtns.appendChild(btnConf);
       actionBtns.appendChild(btnCarg);
@@ -1469,15 +1597,14 @@ function importarProgramaPDF(input) {
   mostrarToast('Importando programa...', 'info');
 
   var xhr = new XMLHttpRequest();
-  xhr.open('POST', '/api/importar-programa', true);
+  xhr.open('POST', '/api/importar-pdf', true);
   xhr.onreadystatechange = function() {
     if (xhr.readyState === 4) {
       try {
         var resp = JSON.parse(xhr.responseText);
         if (resp.ok) {
-          var msg = 'Programa ' + resp.programa + ' importado\n' +
-                    resp.pedidos_insertados + ' pedidos de ' + resp.producto + '\nCliente: ' + resp.cliente;
-          mostrarToast('\u2713 ' + resp.pedidos_insertados + ' pedidos importados', 'ok');
+          var tipo = resp.tipo || 'PDF';
+          mostrarToast('\u2713 ' + resp.pedidos_insertados + ' pedidos importados (' + tipo + ')', 'ok');
           // Reload pedidos
           setTimeout(function() {
             pedidosDataCache = null;
@@ -1977,8 +2104,398 @@ window.addEventListener('DOMContentLoaded', function() {
   var mc = document.getElementById('modal-confeccion');
   var mf = document.getElementById('modal-finalizar');
   if (mc) mc.addEventListener('click', function(e) { if (e.target === this) cerrarModalConfeccion(); });
+  ['modal-asignar','modal-manual','modal-man-iniciar'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('click', function(e) { if (e.target === this) this.classList.remove('open'); });
+  });
   if (mf) mf.addEventListener('click', function(e) { if (e.target === this) cerrarModalFinalizar(); });
 });;
+
+
+// ===== INFORMES =====
+function cargarInformes() {
+  var container = document.getElementById('informes-content');
+  container.innerHTML = '<div class="loading-state"><div class="spinner"></div><p>Calculando...</p></div>';
+  var precio = document.getElementById('inf-precio-hora').value || '10.5';
+  var desde = document.getElementById('inf-desde').value;
+  var hasta = document.getElementById('inf-hasta').value;
+  var params = '?precio_hora=' + precio;
+  if (desde) params += '&desde=' + desde.split('-').reverse().join('/');
+  if (hasta) params += '&hasta=' + hasta.split('-').reverse().join('/');
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', '/api/informes/confeccion' + params, true);
+  xhr.setRequestHeader('X-Session-Token', sessionToken);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === 4) {
+      try {
+        var data = JSON.parse(xhr.responseText);
+        if (!data.ok) { container.innerHTML = '<div class="empty-state"><p>' + (data.error||'Error') + '</p></div>'; return; }
+        renderInformes(data);
+      } catch(e) { container.innerHTML = '<div class="empty-state"><p>Error al cargar</p></div>'; }
+    }
+  };
+  xhr.send();
+}
+
+function renderInformes(data) {
+  var container = document.getElementById('informes-content');
+  var r = data.resumen;
+  if (!r || data.registros.length === 0) {
+    container.innerHTML = '<div class="empty-state"><p>Sin datos para el periodo</p></div>';
+    return;
+  }
+  var h = '';
+  h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">';
+  h += infStatCard('Coste total', '\u20ac' + r.total_coste.toFixed(2), 'var(--verde-vivo)');
+  h += infStatCard('Palets', r.num_palets, 'var(--azul)');
+  h += infStatCard('Horas', (r.total_minutos/60).toFixed(1) + 'h', 'var(--texto)');
+  h += infStatCard('Destrio', r.pct_destrio + '%', r.pct_destrio > 10 ? '#e53935' : 'var(--texto)');
+  h += '</div>';
+  h += '<div class="modal-label" style="margin-bottom:8px">Por Producto</div>';
+  var prods = Object.entries(data.por_producto).sort(function(a,b){return b[1].coste-a[1].coste;});
+  prods.forEach(function(e) {
+    var p = e[0]; var d = e[1];
+    h += '<div style="background:var(--card);border:1px solid var(--borde);border-radius:10px;padding:12px 14px;margin-bottom:8px">';
+    h += '<div style="font-weight:700;font-size:0.85rem;color:var(--texto);margin-bottom:6px">' + (p||'Sin producto') + '</div>';
+    h += '<div style="display:flex;gap:16px;font-family:DM Mono,monospace;font-size:0.65rem;color:var(--texto3)">';
+    h += '<span>Coste <b style="color:var(--verde-vivo)">' + d.coste.toFixed(2) + '\u20ac</b></span>';
+    h += '<span>Palets <b style="color:var(--texto)">' + d.palets + '</b></span>';
+    h += '<span>Destrio <b style="color:var(--texto)">' + d.kg_destrio.toFixed(1) + 'kg</b></span>';
+    h += '</div></div>';
+  });
+  h += '<div class="modal-label" style="margin:12px 0 8px">Por L\u00ednea</div>';
+  h += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">';
+  Object.entries(data.por_linea).forEach(function(e) {
+    var l = e[0]; var d = e[1];
+    h += '<div style="background:var(--card);border:1px solid var(--borde);border-radius:10px;padding:12px;text-align:center">';
+    h += '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.2rem;color:var(--azul)">' + l + '</div>';
+    h += '<div style="font-family:DM Mono,monospace;font-size:0.65rem;color:var(--verde-vivo)">' + d.coste.toFixed(0) + '\u20ac</div>';
+    h += '<div style="font-family:DM Mono,monospace;font-size:0.55rem;color:var(--texto3)">' + d.palets + ' pal</div>';
+    h += '</div>';
+  });
+  h += '</div>';
+  container.innerHTML = h;
+}
+
+function infStatCard(label, value, color) {
+  return '<div style="background:var(--card);border:1px solid var(--borde);border-radius:10px;padding:12px">' +
+    '<div style="font-family:DM Mono,monospace;font-size:0.55rem;color:var(--texto3);text-transform:uppercase;letter-spacing:0.1em">' + label + '</div>' +
+    '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.4rem;color:' + color + ';margin-top:2px">' + value + '</div>' +
+    '</div>';
+}
+
+
+// ===== CONTROL MANIPULADO =====
+var manData = [];
+var manFiltro = 'espera';
+var manLineaAsignar = 1;
+var manLineaManual = 1;
+var manPersonasIni = 10;
+var manItemActivo = null; // item being initiated
+var manCronometros = {}; // row -> intervalId
+var pedidoAsignarActual = null;
+
+function goToManipulado() {
+  document.getElementById('man-fecha-sub').textContent = new Date().toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
+  cargarManipulado();
+}
+
+function cargarManipulado() {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', '/api/manipulado/cola', true);
+  xhr.setRequestHeader('X-Session-Token', sessionToken);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === 4) {
+      try {
+        var data = JSON.parse(xhr.responseText);
+        if (data.ok) {
+          manData = data.items;
+          renderLineasPanel();
+          renderManLista();
+        }
+      } catch(e) {}
+    }
+  };
+  xhr.send();
+}
+
+function renderLineasPanel() {
+  var panel = document.getElementById('man-lineas-panel');
+  if (!panel) return;
+  var html = '';
+  [1,2,3].forEach(function(l) {
+    var enCurso = manData.filter(function(it){ return it.linea == l && it.estado === 'en_curso'; });
+    var enEspera = manData.filter(function(it){ return it.linea == l && it.estado === 'espera'; });
+    var activo = enCurso[0];
+    var color = activo ? 'var(--verde-vivo)' : 'var(--texto3)';
+    var dot = activo ? '&#9679;' : '&#9675;';
+    html += '<div style="background:var(--card);border:1px solid ' + (activo ? 'var(--verde-vivo)' : 'var(--borde)') + ';border-radius:10px;padding:10px 8px;text-align:center">';
+    html += '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:1rem;color:' + color + '">L' + l + ' <span style="font-size:0.7rem">' + dot + '</span></div>';
+    if (activo) {
+      html += '<div style="font-size:0.65rem;color:var(--texto2);margin:2px 0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">' + (activo.producto||'').split(' ').slice(0,2).join(' ') + '</div>';
+      html += '<div id="linea-crono-' + l + '" style="font-family:DM Mono,monospace;font-size:0.85rem;font-weight:700;color:var(--verde-vivo)">--:--</div>';
+      html += '<div style="font-size:0.6rem;color:var(--texto3)">Palet ' + activo.palet + '</div>';
+      // Start cronometro for this line
+      startLineaCrono(l, activo);
+    } else {
+      html += '<div style="font-size:0.65rem;color:var(--texto3);margin:4px 0">PARADA</div>';
+      if (enEspera.length > 0) {
+        html += '<div style="font-size:0.6rem;color:var(--azul)">' + enEspera.length + ' en espera</div>';
+      }
+    }
+    html += '</div>';
+  });
+  panel.innerHTML = html;
+  // Restart line cronometros
+  [1,2,3].forEach(function(l) {
+    var activo = manData.filter(function(it){ return it.linea == l && it.estado === 'en_curso'; })[0];
+    if (activo) startLineaCrono(l, activo);
+  });
+}
+
+function startLineaCrono(linea, item) {
+  var key = 'L' + linea;
+  if (manCronometros[key]) clearInterval(manCronometros[key]);
+  if (!item.inicio) return;
+  var hoy = new Date().toLocaleDateString('es-ES').split('/').reverse().join('-');
+  var startTime = new Date(hoy + 'T' + item.inicio + ':00');
+  manCronometros[key] = setInterval(function() {
+    var diff = Math.floor((new Date() - startTime) / 1000);
+    if (diff < 0) diff = 0;
+    var m = Math.floor(diff / 60);
+    var s = diff % 60;
+    var el = document.getElementById('linea-crono-' + linea);
+    if (el) el.textContent = String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+  }, 1000);
+}
+
+function filtrarManipulado(filtro, el) {
+  manFiltro = filtro;
+  document.querySelectorAll('#screen-manipulado .filter-tab').forEach(function(t){ t.classList.remove('active'); });
+  if (el) el.classList.add('active');
+  renderManLista();
+}
+
+function renderManLista() {
+  var container = document.getElementById('man-lista');
+  if (!container) return;
+  var items = manData.filter(function(it){ return it.estado === manFiltro; });
+  if (items.length === 0) {
+    container.innerHTML = '<div class="empty-state"><p>Sin palets en este estado</p></div>';
+    return;
+  }
+  var html = '';
+  items.forEach(function(it) {
+    var borderColor = it.estado === 'en_curso' ? 'var(--verde-vivo)' : it.estado === 'finalizado' ? 'var(--borde)' : 'var(--azul)';
+    html += '<div style="background:var(--card);border:1px solid ' + borderColor + ';border-radius:12px;padding:12px 14px;margin-bottom:10px" data-row="' + it.row + '">';
+    // Header
+    html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">';
+    html += '<div>';
+    html += '<div style="font-family:DM Mono,monospace;font-size:0.58rem;color:var(--texto3)">L' + it.linea + (it.pedido ? ' &middot; #' + it.pedido : ' &middot; MANUAL') + '</div>';
+    html += '<div style="font-weight:700;font-size:0.9rem;color:var(--texto)">' + (it.producto||'Sin producto') + '</div>';
+    if (it.cliente) html += '<div style="font-size:0.72rem;color:var(--texto2)">' + it.cliente + '</div>';
+    html += '</div>';
+    html += '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.1rem;color:var(--azul)">P' + (it.palet||'?') + '</div>';
+    html += '</div>';
+    // Info row
+    html += '<div style="display:flex;gap:12px;font-family:DM Mono,monospace;font-size:0.62rem;color:var(--texto3);margin-bottom:10px">';
+    if (it.bultos) html += '<span>' + it.bultos + ' bul</span>';
+    if (it.personas) html += '<span>' + it.personas + ' pers</span>';
+    if (it.inicio) html += '<span>Inicio ' + it.inicio + '</span>';
+    if (it.minutos) html += '<span>' + it.minutos + ' min</span>';
+    html += '</div>';
+    // Action buttons
+    html += '<div style="display:flex;gap:8px">';
+    if (it.estado === 'espera') {
+      html += '<button onclick="iniciarItemMan(' + it.row + ')" style="flex:1;padding:8px;background:var(--azul);border:none;border-radius:8px;color:#fff;font-family:Syne,sans-serif;font-weight:700;font-size:0.75rem;cursor:pointer">&#9654; Iniciar</button>';
+      html += '<button onclick="anularItemMan(' + it.row + ')" style="padding:8px 12px;background:transparent;border:1px solid #e53935;border-radius:8px;color:#e53935;font-family:Syne,sans-serif;font-weight:700;font-size:0.75rem;cursor:pointer">&#10005;</button>';
+    } else if (it.estado === 'en_curso') {
+      html += '<button onclick="finalizarItemMan(' + it.row + ',\'' + (it.inicio||'') + '\')" style="flex:1;padding:8px;background:var(--verde);border:none;border-radius:8px;color:#fff;font-family:Syne,sans-serif;font-weight:700;font-size:0.75rem;cursor:pointer">&#10003; Finalizar</button>';
+    } else if (it.estado === 'finalizado') {
+      html += '<span style="font-size:0.7rem;color:var(--verde-vivo)">&#10003; Completado ' + (it.fin||'') + '</span>';
+      html += '<button onclick="anularItemMan(' + it.row + ')" style="margin-left:auto;padding:6px 10px;background:transparent;border:1px solid #e53935;border-radius:8px;color:#e53935;font-size:0.7rem;cursor:pointer">Anular</button>';
+    }
+    html += '</div></div>';
+  });
+  container.innerHTML = html;
+}
+
+// ---- ASIGNAR DESDE PEDIDOS ----
+function abrirModalAsignar(pedido, producto, cliente, bultos) {
+  pedidoAsignarActual = { pedido: pedido, producto: producto, cliente: cliente, bultos: bultos };
+  document.getElementById('modal-asignar-sub').textContent = '#' + pedido + ' - ' + (producto||'');
+  document.getElementById('asg-palet').value = '';
+  document.getElementById('asg-obs').value = '';
+  manLineaAsignar = 1;
+  selAsignarLinea(1);
+  document.getElementById('modal-asignar').classList.add('open');
+}
+
+function selAsignarLinea(n) {
+  manLineaAsignar = n;
+  [1,2,3].forEach(function(i) {
+    var btn = document.getElementById('asg-l' + i);
+    if (!btn) return;
+    if (i === n) { btn.style.background='var(--verde)'; btn.style.border='2px solid var(--verde-vivo)'; btn.style.color='#fff'; }
+    else { btn.style.background='var(--card)'; btn.style.border='1px solid var(--borde2)'; btn.style.color='var(--texto2)'; }
+  });
+}
+
+function confirmarAsignar() {
+  var palet = document.getElementById('asg-palet').value.trim();
+  var obs = document.getElementById('asg-obs').value.trim();
+  if (!palet) { alert('Introduce el numero de palet'); return; }
+  var p = pedidoAsignarActual || {};
+  var body = JSON.stringify({
+    pedido: p.pedido || '',
+    producto: p.producto || '',
+    cliente: p.cliente || '',
+    bultos: p.bultos || '',
+    palet: palet,
+    linea: manLineaAsignar,
+    observaciones: obs
+  });
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/manipulado/asignar', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.setRequestHeader('X-Session-Token', sessionToken);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === 4) {
+      try {
+        var resp = JSON.parse(xhr.responseText);
+        if (resp.ok) {
+          document.getElementById('modal-asignar').classList.remove('open');
+          mostrarToast('\u2713 Palet asignado a L' + manLineaAsignar, 'ok');
+        } else { alert('Error: ' + resp.error); }
+      } catch(e) { alert('Error'); }
+    }
+  };
+  xhr.send(body);
+}
+
+// ---- ENTRADA MANUAL ----
+function abrirModalManual() {
+  ['man-producto','man-cliente','man-palet','man-bultos'].forEach(function(id){ document.getElementById(id).value=''; });
+  manLineaManual = 1;
+  selManualLinea(1);
+  document.getElementById('modal-manual').classList.add('open');
+}
+
+function selManualLinea(n) {
+  manLineaManual = n;
+  [1,2,3].forEach(function(i) {
+    var btn = document.getElementById('man-l' + i);
+    if (!btn) return;
+    if (i === n) { btn.style.background='var(--verde)'; btn.style.border='2px solid var(--verde-vivo)'; btn.style.color='#fff'; }
+    else { btn.style.background='var(--card)'; btn.style.border='1px solid var(--borde2)'; btn.style.color='var(--texto2)'; }
+  });
+}
+
+function guardarManual() {
+  var prod = document.getElementById('man-producto').value.trim();
+  if (!prod) { alert('Introduce el producto'); return; }
+  var body = JSON.stringify({
+    pedido: '',
+    producto: prod,
+    cliente: document.getElementById('man-cliente').value.trim(),
+    palet: document.getElementById('man-palet').value.trim() || '1',
+    bultos: document.getElementById('man-bultos').value.trim() || '0',
+    linea: manLineaManual,
+    observaciones: 'Manual'
+  });
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/manipulado/asignar', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.setRequestHeader('X-Session-Token', sessionToken);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === 4) {
+      try {
+        var resp = JSON.parse(xhr.responseText);
+        if (resp.ok) {
+          document.getElementById('modal-manual').classList.remove('open');
+          mostrarToast('\u2713 A\u00f1adido a cola L' + manLineaManual, 'ok');
+          cargarManipulado();
+        } else { alert('Error: ' + resp.error); }
+      } catch(e) { alert('Error'); }
+    }
+  };
+  xhr.send(body);
+}
+
+// ---- INICIAR / FINALIZAR / ANULAR ----
+function iniciarItemMan(row) {
+  manItemActivo = row;
+  var item = manData.find(function(it){ return it.row === row; });
+  if (!item) return;
+  manPersonasIni = 10;
+  document.getElementById('man-personas-val').textContent = 10;
+  document.getElementById('man-ini-title').textContent = 'Iniciar - L' + item.linea + ' Palet ' + item.palet;
+  document.getElementById('man-ini-sub').textContent = item.producto || '';
+  document.getElementById('modal-man-iniciar').classList.add('open');
+}
+
+function ajManPersonas(d) {
+  manPersonasIni = Math.max(1, manPersonasIni + d);
+  document.getElementById('man-personas-val').textContent = manPersonasIni;
+}
+
+function confirmarIniciarMan() {
+  var now = new Date();
+  var inicio = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+  var body = JSON.stringify({ row: manItemActivo, estado: 'en_curso', inicio: inicio, personas: manPersonasIni });
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/manipulado/estado', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.setRequestHeader('X-Session-Token', sessionToken);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === 4) {
+      document.getElementById('modal-man-iniciar').classList.remove('open');
+      mostrarToast('\u25b6 Palet iniciado', 'ok');
+      cargarManipulado();
+    }
+  };
+  xhr.send(body);
+}
+
+function finalizarItemMan(row, inicio) {
+  var now = new Date();
+  var fin = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+  var minutos = 0;
+  if (inicio) {
+    var partes = inicio.split(':');
+    var ini = new Date(); ini.setHours(parseInt(partes[0]), parseInt(partes[1]), 0, 0);
+    minutos = Math.round((now - ini) / 60000);
+  }
+  var item = manData.find(function(it){ return it.row === row; });
+  var body = JSON.stringify({ row: row, estado: 'finalizado', inicio: inicio, fin: fin, minutos: minutos, personas: item ? item.personas : '' });
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/manipulado/estado', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.setRequestHeader('X-Session-Token', sessionToken);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === 4) {
+      mostrarToast('\u2713 Palet finalizado', 'ok');
+      filtrarManipulado('finalizado', null);
+      cargarManipulado();
+    }
+  };
+  xhr.send(body);
+}
+
+function anularItemMan(row) {
+  if (!confirm('Anular este palet?')) return;
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/manipulado/eliminar', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.setRequestHeader('X-Session-Token', sessionToken);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === 4) {
+      mostrarToast('Palet anulado', 'info');
+      cargarManipulado();
+    }
+  };
+  xhr.send(JSON.stringify({ row: row }));
+}
 
 </script>
 
@@ -2041,5 +2558,118 @@ window.addEventListener('DOMContentLoaded', function() {
     <button class="modal-cancel" onclick="cerrarModalFinalizar()">Cancelar</button>
   </div>
 </div>
+<!-- ===== INFORMES ===== -->
+<div class="screen" id="screen-informes">
+  <div class="back-header">
+    <button class="back-btn" onclick="goTo('home')">&#8249;</button>
+    <div>
+      <div class="back-title">&#128202; Informes</div>
+      <div class="back-subtitle">Costes de confeccion</div>
+    </div>
+  </div>
+  <div style="padding:12px 16px;display:flex;gap:8px;align-items:center;border-bottom:1px solid var(--borde);flex-shrink:0">
+    <label class="modal-label" style="margin:0;white-space:nowrap">&#8364;/hora:</label>
+    <input type="text" id="inf-precio-hora" value="10.5" inputmode="decimal" style="width:70px;background:var(--card);border:1px solid var(--borde2);border-radius:6px;padding:6px 8px;color:var(--texto);font-family:'DM Mono',monospace;font-size:0.85rem">
+    <input type="date" id="inf-desde" style="flex:1;background:var(--card);border:1px solid var(--borde2);border-radius:6px;padding:6px 8px;color:var(--texto);font-family:'DM Mono',monospace;font-size:0.75rem">
+    <input type="date" id="inf-hasta" style="flex:1;background:var(--card);border:1px solid var(--borde2);border-radius:6px;padding:6px 8px;color:var(--texto);font-family:'DM Mono',monospace;font-size:0.75rem">
+    <button onclick="cargarInformes()" style="background:var(--verde);border:none;border-radius:8px;color:#fff;font-family:'Syne',sans-serif;font-weight:700;font-size:0.72rem;padding:7px 12px;cursor:pointer">Ver</button>
+  </div>
+  <div class="scroll-content" id="informes-content">
+    <div class="empty-state"><p>Selecciona fechas y pulsa Ver</p></div>
+  </div>
+</div>
+
+<!-- ===== CONTROL MANIPULADO ===== -->
+<div class="screen" id="screen-manipulado">
+  <div class="back-header">
+    <button class="back-btn" onclick="goTo('home')">&#8249;</button>
+    <div>
+      <div class="back-title">&#127981; Control Manipulado</div>
+      <div class="back-subtitle" id="man-fecha-sub"></div>
+    </div>
+    <button onclick="abrirModalManual()" style="margin-left:auto;background:var(--azul);border:none;border-radius:8px;color:#fff;font-family:'Syne',sans-serif;font-weight:700;font-size:0.72rem;padding:7px 12px;cursor:pointer">&#43; Manual</button>
+  </div>
+
+  <!-- LINEAS PANEL -->
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:10px 12px;border-bottom:1px solid var(--borde);flex-shrink:0" id="man-lineas-panel">
+    <!-- rendered by JS -->
+  </div>
+
+  <!-- TABS -->
+  <div class="filter-tabs" style="border-top:none;flex-shrink:0">
+    <div class="filter-tab active" onclick="filtrarManipulado('espera',this)">En espera</div>
+    <div class="filter-tab" onclick="filtrarManipulado('en_curso',this)">En curso</div>
+    <div class="filter-tab" onclick="filtrarManipulado('finalizado',this)">Finalizados</div>
+  </div>
+
+  <div class="scroll-content" id="man-lista"></div>
+</div>
+
+<!-- MODAL ASIGNAR LINEA (desde pedidos) -->
+<div class="modal-overlay" id="modal-asignar">
+  <div class="modal-box">
+    <div class="modal-title">Asignar a L&#237;nea</div>
+    <div class="modal-sub" id="modal-asignar-sub"></div>
+    <label class="modal-label">L&#237;nea</label>
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <button id="asg-l1" onclick="selAsignarLinea(1)" style="flex:1;padding:12px 0;border-radius:8px;border:2px solid var(--verde-vivo);background:var(--verde);color:#fff;font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;cursor:pointer">L1</button>
+      <button id="asg-l2" onclick="selAsignarLinea(2)" style="flex:1;padding:12px 0;border-radius:8px;border:1px solid var(--borde2);background:var(--card);color:var(--texto2);font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;cursor:pointer">L2</button>
+      <button id="asg-l3" onclick="selAsignarLinea(3)" style="flex:1;padding:12px 0;border-radius:8px;border:1px solid var(--borde2);background:var(--card);color:var(--texto2);font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;cursor:pointer">L3</button>
+    </div>
+    <label class="modal-label">N&#250;mero de Palet</label>
+    <input class="modal-input" type="text" id="asg-palet" placeholder="Ej: 1" inputmode="numeric">
+    <label class="modal-label" style="margin-top:4px">Observaciones <span style="color:var(--texto3)">(opcional)</span></label>
+    <input class="modal-input" type="text" id="asg-obs" placeholder="Notas...">
+    <button class="modal-save" onclick="confirmarAsignar()">Asignar</button>
+    <button class="modal-cancel" onclick="document.getElementById('modal-asignar').classList.remove('open')">Cancelar</button>
+  </div>
+</div>
+
+<!-- MODAL ENTRADA MANUAL -->
+<div class="modal-overlay" id="modal-manual">
+  <div class="modal-box">
+    <div class="modal-title">Entrada Manual</div>
+    <div class="modal-sub">Pedido de mercado u otro</div>
+    <label class="modal-label">Producto *</label>
+    <input class="modal-input" type="text" id="man-producto" placeholder="Ej: Tomate Cherry 500g">
+    <label class="modal-label" style="margin-top:4px">Cliente</label>
+    <input class="modal-input" type="text" id="man-cliente" placeholder="Mercado, cliente...">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div>
+        <label class="modal-label">Palet n&#186;</label>
+        <input class="modal-input" type="text" id="man-palet" placeholder="1" inputmode="numeric">
+      </div>
+      <div>
+        <label class="modal-label">Bultos</label>
+        <input class="modal-input" type="text" id="man-bultos" placeholder="0" inputmode="numeric">
+      </div>
+    </div>
+    <label class="modal-label" style="margin-top:4px">L&#237;nea</label>
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <button id="man-l1" onclick="selManualLinea(1)" style="flex:1;padding:10px 0;border-radius:8px;border:2px solid var(--verde-vivo);background:var(--verde);color:#fff;font-family:'Syne',sans-serif;font-weight:800;cursor:pointer">L1</button>
+      <button id="man-l2" onclick="selManualLinea(2)" style="flex:1;padding:10px 0;border-radius:8px;border:1px solid var(--borde2);background:var(--card);color:var(--texto2);font-family:'Syne',sans-serif;font-weight:800;cursor:pointer">L2</button>
+      <button id="man-l3" onclick="selManualLinea(3)" style="flex:1;padding:10px 0;border-radius:8px;border:1px solid var(--borde2);background:var(--card);color:var(--texto2);font-family:'Syne',sans-serif;font-weight:800;cursor:pointer">L3</button>
+    </div>
+    <button class="modal-save" onclick="guardarManual()">A&#241;adir a cola</button>
+    <button class="modal-cancel" onclick="document.getElementById('modal-manual').classList.remove('open')">Cancelar</button>
+  </div>
+</div>
+
+<!-- MODAL INICIAR DESDE MANIPULADO -->
+<div class="modal-overlay" id="modal-man-iniciar">
+  <div class="modal-box">
+    <div class="modal-title" id="man-ini-title">Iniciar Palet</div>
+    <div class="modal-sub" id="man-ini-sub"></div>
+    <label class="modal-label">Personas en l&#237;nea</label>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+      <button onclick="ajManPersonas(-1)" style="background:var(--card2);border:1px solid var(--borde2);color:var(--texto);border-radius:6px;padding:8px 16px;cursor:pointer;font-size:1.1rem">-</button>
+      <span id="man-personas-val" style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.6rem;color:var(--verde-vivo);min-width:40px;text-align:center">10</span>
+      <button onclick="ajManPersonas(1)" style="background:var(--card2);border:1px solid var(--borde2);color:var(--texto);border-radius:6px;padding:8px 16px;cursor:pointer;font-size:1.1rem">+</button>
+    </div>
+    <button class="modal-save" style="background:var(--azul)" onclick="confirmarIniciarMan()">&#9654; Iniciar cronometro</button>
+    <button class="modal-cancel" onclick="document.getElementById('modal-man-iniciar').classList.remove('open')">Cancelar</button>
+  </div>
+</div>
+
 </body>
 </html>
