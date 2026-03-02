@@ -1270,6 +1270,7 @@ function renderPedidosFecha() {
       const estado = estadosPedidos[p.pedido] || 'pendiente';
 
       let borderStyle = '';
+      if (p.modificacion) borderStyle = 'border-color:#ff3d00;border-width:2px';
       if (estado === 'confeccionado') borderStyle = 'border-color:var(--amarillo)';
       if (estado === 'cargado') borderStyle = 'border-color:var(--verde-vivo);opacity:0.7';
 
@@ -1288,12 +1289,14 @@ function renderPedidosFecha() {
       const header = document.createElement('div');
       header.className = 'pedido-card-header';
       header.addEventListener('click', function() { togglePedido(cardId); });
+      var modBadge = p.modificacion ? '<div style="background:#ff3d00;color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.6rem;letter-spacing:0.08em;padding:2px 7px;border-radius:4px;margin-bottom:4px;display:inline-flex;align-items:center;gap:4px">&#9888; MODIFICACIÓN</div>' : '';
       header.innerHTML =
         '<div style="min-width:52px">' +
           '<div class="pedido-num">#' + p.pedido + '</div>' +
           '<div style="font-size:0.58rem;color:var(--texto3);margin-top:3px">' + (p.fecha_salida || '') + '</div>' +
         '</div>' +
         '<div class="pedido-main">' +
+          modBadge +
           '<div class="pedido-producto">' + (p.producto || 'Sin producto') + '</div>' +
           '<div class="pedido-cliente">' + (p.cliente || '') + '</div>' +
           '<div class="pedido-chips" style="margin-top:6px">' +
@@ -1343,7 +1346,9 @@ function renderPedidosFecha() {
       actionBtns.appendChild(btnCarg);
 
       let detailHTML = '';
-      if (p.matricula) detailHTML += '<div class="detail-row"><span class="detail-label">Matricula</span><span class="detail-value">' + p.matricula + '</span></div>';
+      if (p.lote) detailHTML += '<div class="detail-row"><span class="detail-label" style="color:var(--verde-vivo)">&#127807; Lote</span><span class="detail-value" style="font-family:DM Mono,monospace;color:var(--verde-vivo);font-weight:700">' + p.lote + '</span></div>';
+      if (p.envase) detailHTML += '<div class="detail-row"><span class="detail-label" style="color:var(--azul)">&#128230; Envase</span><span class="detail-value" style="font-weight:700;color:var(--azul)">' + p.envase + '</span></div>';
+      if (p.matricula) detailHTML += '<div class="detail-row"><span class="detail-label">Matrícula</span><span class="detail-value">' + p.matricula + '</span></div>';
       if (p.transportista) detailHTML += '<div class="detail-row"><span class="detail-label">Transportista</span><span class="detail-value">' + p.transportista + '</span></div>';
       if (p.cliente) detailHTML += '<div class="detail-row"><span class="detail-label">Cliente</span><span class="detail-value">' + p.cliente + '</span></div>';
       if (p.destino) detailHTML += '<div class="detail-row"><span class="detail-label">Destino</span><span class="detail-value">' + p.destino + '</span></div>';
