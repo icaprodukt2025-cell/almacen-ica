@@ -778,6 +778,90 @@ function doLogout() {
   showLogin();
 }
 
+
+// ===== TRAZA =====
+var trazasPorPedido = {}; // pedido|producto -> [paletNum, ...]
+var paletsManipuladoFinalizados = {}; // pedido|producto -> [paletNum, ...] finalizados en manipulado
+
+function abrirModalConfeccion(pedido, producto, cliente, bultos, palets) {
+  pedidoEnConfeccion = { pedido: pedido, producto: producto, cliente: cliente, bultos: bultos, totalPalets: parseInt(palets)||0 };
+  var confeccionados = confeccionadosPorPedido[pedido] || 0;
+  document.getElementById('modal-conf-title').textContent = 'Traza de Palet';
+  document.getElementById('modal-conf-sub').textContent = '#' + pedido + ' - ' + (producto||'');
+  var counterEl = document.getElementById('modal-palet-counter');
+  var total = parseInt(palets)||0;
+  if (total > 0) { counterEl.textContent = (confeccionados+1) + ' de ' + total; counterEl.style.display='block'; }
+  else { counterEl.style.display='none'; }
+  document.getElementById('modal-palet').value = confeccionados + 1;
+  document.getElementById('modal-lotes-container').innerHTML = '';
+  addLoteRow();
+  document.getElementById('modal-confeccion').classList.add('open');
+}
+
+function guardarTraza() {
+  var palet = document.getElementById('modal-palet').value.trim();
+  if (!palet) { alert('Introduce el numero de palet'); return; }
+
+  var lotes = [];
+  var rows = document.querySelectorAll('#modal-lotes-container .lote-row');
+  for (var i = 0; i < rows.length; i++) {
+    var inputs = rows[i].querySelectorAll('input');
+    var loteVal = inputs[0] ? inputs[0].value.trim() : '';
+    var kgU = parseFloat(String(inputs[1] ? inputs[1].value : '0').replace(',','.')) || 0;
+    var kgD = parseFloat(String(inputs[2] ? inputs[2].value : '0').replace(',','.')) || 0;
+    if (loteVal) lotes.push({ lote: loteVal, kg_usados: kgU, kg_destrio: kgD });
+  }
+  if (lotes.length === 0) lotes.push({ lote: '', kg_usados: 0, kg_destrio: 0 });
+
+  var btn = document.querySelector('#modal-confeccion .modal-save');
+  btn.textContent = 'Guardando...';
+  btn.disabled = true;
+
+  var ped = pedidoEnConfeccion.pedido;
+  var body = JSON.stringify({
+    pedido: String(ped),
+    producto: String(pedidoEnConfeccion.producto || ''),
+    cliente: String(pedidoEnConfeccion.cliente || ''),
+    palet: palet,
+    linea: '', personas: '', inicio: '', fin: '', minutos: 0,
+    lotes: lotes
+  });
+
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/confeccion', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === 4) {
+      btn.textContent = '\u{1F4CB} Guardar traza';
+      btn.disabled = false;
+      if (xhr.status === 200) {
+        try {
+          var resp = JSON.parse(xhr.responseText);
+          if (resp.ok) {
+            // Track traza
+            var key = ped + '|' + (pedidoEnConfeccion.producto||'');
+            if (!trazasPorPedido[key]) trazasPorPedido[key] = [];
+            if (trazasPorPedido[key].indexOf(palet) === -1) trazasPorPedido[key].push(palet);
+            // Save to servidor
+            saveEstado(ped, 'traza_palet', key + '|P' + palet);
+            if (!trazasPorPedido[key]) trazasPorPedido[key] = [];
+            if (trazasPorPedido[key].indexOf(String(palet)) === -1) trazasPorPedido[key].push(String(palet));
+            confeccionadosPorPedido[ped] = (confeccionadosPorPedido[ped] || 0) + 1;
+            cerrarModalConfeccion();
+            renderPedidosFecha();
+            actualizarStatPedidos(pedidosDataCache);
+  // Also call after loadEstado so sin trazar is correct
+  if (typeof loadEstado === 'function') {
+    loadEstado(function() { actualizarStatPedidos(pedidosDataCache); });
+  }
+          } else { alert('Error: ' + (resp.error||'desconocido')); }
+        } catch(e) { alert('Error'); }
+      } else { alert('Error HTTP: ' + xhr.status); }
+    }
+  };
+  xhr.send(body);
+}
+
 // ===== ESTADO COMPARTIDO =====
 function saveEstado(pedido, tipo, valor) {
   try {
@@ -813,8 +897,31 @@ function loadEstado(callback) {
         var data = JSON.parse(xhr.responseText);
         // Apply pedido states
         (data.estados || []).forEach(function(e) {
-          estadosPedidos[e.pedido] = e.estado;
-          if (e.estado === 'cargado') estadosCargas[e.pedido] = true;
+          if (e.tipo === 'estado_pedido' || (!e.tipo && e.estado && e.estado !== 'palet_man_fin' && e.estado !== 'traza_palet')) {
+            estadosPedidos[e.pedido] = e.estado;
+            if (e.estado === 'cargado') estadosCargas[e.pedido] = true;
+          }
+        });
+        // Load palet_man_fin and traza_palet from estados
+        (data.estados || []).forEach(function(e) {
+          if (e.tipo === 'palet_man_fin') {
+            // valor = key|Ppalet e.g. "2198|Bio Pimiento|P1"
+            var parts = e.valor ? e.valor.split('|P') : [];
+            if (parts.length >= 2) {
+              var mk = parts[0];
+              var pn = parts[1];
+              if (!paletsManipuladoFinalizados[mk]) paletsManipuladoFinalizados[mk] = [];
+              if (paletsManipuladoFinalizados[mk].indexOf(pn) === -1) paletsManipuladoFinalizados[mk].push(pn);
+            }
+          } else if (e.tipo === 'traza_palet') {
+            var parts2 = e.valor ? e.valor.split('|P') : [];
+            if (parts2.length >= 2) {
+              var mk2 = parts2[0];
+              var pn2 = parts2[1];
+              if (!trazasPorPedido[mk2]) trazasPorPedido[mk2] = [];
+              if (trazasPorPedido[mk2].indexOf(pn2) === -1) trazasPorPedido[mk2].push(pn2);
+            }
+          }
         });
         // Apply active palets
         (data.palets || []).forEach(function(p) {
@@ -1056,6 +1163,21 @@ function filtrarPedidos(filtro, el) {
 }
 
 function actualizarStatPedidos(diasData) {
+  // Update sin trazar counter (always, regardless of date)
+  var sinTrazarTotal = 0;
+  Object.keys(paletsManipuladoFinalizados).forEach(function(mk) {
+    var pfin = paletsManipuladoFinalizados[mk] || [];
+    var ptr = trazasPorPedido[mk] || [];
+    sinTrazarTotal += pfin.filter(function(pn){ return ptr.indexOf(pn) === -1; }).length;
+  });
+  var elT = document.getElementById('statSinTraza');
+  var elTS = document.getElementById('statSinTrazaSub');
+  if (elT) {
+    elT.textContent = sinTrazarTotal;
+    elT.style.color = sinTrazarTotal > 0 ? '#ff9800' : 'var(--verde-vivo)';
+  }
+  if (elTS) elTS.textContent = sinTrazarTotal === 1 ? 'palet pendiente' : 'palets pendientes';
+
   if (!diasData || !fechaSeleccionada) return;
   var pedidosFecha = diasData[fechaSeleccionada] || [];
   var total = pedidosFecha.length;
@@ -1162,7 +1284,7 @@ function renderPedidosFecha() {
       const btnConfecc = document.createElement('button');
       const enConfecc = (estadosPedidos[p.pedido] === 'en_confeccion');
       btnConfecc.className = 'action-btn azul' + (enConfecc ? ' active' : '');
-      btnConfecc.innerHTML = '&#9881; Confeccionar';
+      btnConfecc.innerHTML = '&#128203; Traza';
       btnConfecc.addEventListener('click', function(e) { e.stopPropagation(); abrirModalConfeccion(p.pedido, p.producto, p.cliente, p.bultos, p.palets); });
 
       const btnAsgL = document.createElement('button');
@@ -1201,18 +1323,46 @@ function renderPedidosFecha() {
       detail.innerHTML = detailHTML;
       detail.appendChild(actionBtns);
 
-      // Highlight card if palet activo
+      // Card color logic - per palet
+      var manKey = p.pedido + '|' + (p.producto||'');
+      // palets finalizados en manipulado para este pedido+producto
+      var paletsFinalizados = paletsManipuladoFinalizados[manKey] || [];
+      // palets con traza guardada
+      var paletsTrazados = trazasPorPedido[manKey] || [];
+      var sinTraza = paletsFinalizados.filter(function(pn) { return paletsTrazados.indexOf(pn) === -1; });
+
+      if (paletsFinalizados.length > 0) {
+        if (sinTraza.length === 0) {
+          // Verde - todos los palets finalizados tienen traza
+          card.style.borderColor = 'var(--verde-vivo)';
+          card.style.background = 'rgba(56,142,60,0.08)';
+        } else {
+          // Naranja - hay palets sin trazar
+          card.style.borderColor = '#ff9800';
+          card.style.background = 'rgba(255,152,0,0.08)';
+        }
+      }
       if (paletActivoInfo[p.pedido]) {
         card.style.borderColor = 'var(--azul)';
         card.style.boxShadow = '0 0 8px rgba(41,121,255,0.3)';
       }
       // Show assigned badge
-      var manKey = p.pedido + '|' + (p.producto || '');
-      if (pedidosAsignados && pedidosAsignados[manKey] && pedidosAsignados[manKey].length > 0) {
+      var manKey2 = p.pedido + '|' + (p.producto || '');
+      if (pedidosAsignados && pedidosAsignados[manKey2] && pedidosAsignados[manKey2].length > 0) {
         var badge = document.createElement('div');
         badge.style.cssText = 'background:rgba(41,121,255,0.15);border-top:1px solid var(--azul);padding:5px 14px;font-family:DM Mono,monospace;font-size:0.6rem;color:var(--azul)';
-        badge.textContent = '\u23f3 ' + pedidosAsignados[manKey].length + ' palet(s) en cola';
+        badge.textContent = '\u23f3 ' + pedidosAsignados[manKey2].length + ' palet(s) en cola';
         card.appendChild(badge);
+      }
+      // Traza badge - show which palets need traza
+      var pfin = paletsManipuladoFinalizados[manKey2] || [];
+      var ptr = trazasPorPedido[manKey2] || [];
+      var sinTr = pfin.filter(function(pn){ return ptr.indexOf(pn) === -1; });
+      if (sinTr.length > 0) {
+        var tbadge = document.createElement('div');
+        tbadge.style.cssText = 'background:rgba(255,152,0,0.15);border-top:1px solid #ff9800;padding:5px 14px;font-family:DM Mono,monospace;font-size:0.6rem;color:#ff9800';
+        tbadge.textContent = '\u26a0 Traza pendiente: P' + sinTr.join(', P');
+        card.appendChild(tbadge);
       }
 
       card.appendChild(header);
@@ -2533,6 +2683,18 @@ function finalizarItemMan(row, inicio) {
   xhr.onreadystatechange = function() {
     if (xhr.readyState === 4) {
       mostrarToast('\u2713 Palet finalizado', 'ok');
+      // Track palet finalizado para traza
+      if (item && item.pedido) {
+        var mk = item.pedido + '|' + (item.producto||'');
+        if (!paletsManipuladoFinalizados[mk]) paletsManipuladoFinalizados[mk] = [];
+        var pn = String(item.palet);
+        if (paletsManipuladoFinalizados[mk].indexOf(pn) === -1) paletsManipuladoFinalizados[mk].push(pn);
+        // Save to Estado sheet
+        saveEstado(item.pedido, 'palet_man_fin', mk + '|P' + pn);
+        // Mark pedido as confeccionado
+        estadosPedidos[item.pedido] = 'confeccionado';
+        saveEstado(item.pedido, 'estado_pedido', 'confeccionado');
+      }
       filtrarManipulado('finalizado', null);
       cargarManipulado();
     }
@@ -2560,35 +2722,20 @@ function anularItemMan(row) {
 <!-- MODAL INICIAR PALET -->
 <div class="modal-overlay" id="modal-confeccion">
   <div class="modal-box">
-    <div class="modal-title" id="modal-conf-title">Iniciar Palet</div>
+    <div class="modal-title" id="modal-conf-title">Traza de Palet</div>
     <div class="modal-sub" id="modal-conf-sub"></div>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-      <div>
-        <label class="modal-label">L&#237;nea</label>
-        <div style="display:flex;gap:6px">
-          <button id="btn-linea-1" onclick="selLinea(1)" style="flex:1;padding:10px 0;border-radius:8px;border:2px solid var(--verde-vivo);background:var(--verde);color:#fff;font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer">L1</button>
-          <button id="btn-linea-2" onclick="selLinea(2)" style="flex:1;padding:10px 0;border-radius:8px;border:1px solid var(--borde2);background:var(--card);color:var(--texto2);font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer">L2</button>
-          <button id="btn-linea-3" onclick="selLinea(3)" style="flex:1;padding:10px 0;border-radius:8px;border:1px solid var(--borde2);background:var(--card);color:var(--texto2);font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer">L3</button>
-        </div>
-      </div>
-      <div>
-        <label class="modal-label">Personas</label>
-        <div style="display:flex;align-items:center;gap:8px;margin-top:2px">
-          <button onclick="ajustarPersonasLinea(-1)" style="background:var(--card2);border:1px solid var(--borde2);color:var(--texto);border-radius:6px;padding:6px 12px;cursor:pointer;font-size:1.1rem;line-height:1">-</button>
-          <span id="modal-personas-val" style="font-family:Syne,sans-serif;font-weight:800;font-size:1.4rem;color:var(--verde-vivo);min-width:32px;text-align:center">10</span>
-          <button onclick="ajustarPersonasLinea(1)" style="background:var(--card2);border:1px solid var(--borde2);color:var(--texto);border-radius:6px;padding:6px 12px;cursor:pointer;font-size:1.1rem;line-height:1">+</button>
-        </div>
-      </div>
-    </div>
 
     <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px">
       <label class="modal-label" style="margin-bottom:0">N&#250;mero de Palet *</label>
       <span id="modal-palet-counter" style="font-family:'DM Mono',monospace;font-size:0.65rem;color:var(--verde-vivo);display:none"></span>
     </div>
-    <input class="modal-input" type="text" id="modal-palet" placeholder="Obligatorio" inputmode="numeric">
+    <input class="modal-input" type="text" id="modal-palet" placeholder="Ej: 1" inputmode="numeric">
 
-    <button class="modal-save" onclick="iniciarConfeccion()" style="background:var(--azul)">&#9654; Iniciar</button>
+    <label class="modal-label" style="margin-top:8px">Lotes utilizados</label>
+    <div id="modal-lotes-container"></div>
+    <button class="btn-add-lote" onclick="addLoteRow()">+ A&#241;adir lote</button>
+
+    <button class="modal-save" onclick="guardarTraza()">&#128203; Guardar traza</button>
     <button class="modal-cancel" onclick="cerrarModalConfeccion()">Cancelar</button>
   </div>
 </div>
