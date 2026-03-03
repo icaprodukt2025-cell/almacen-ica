@@ -773,6 +773,7 @@ textarea::placeholder { color:var(--texto3); }
       <span>PEDIDOS: <span id="stat-ped-count" style="color:var(--texto)">—</span></span>
       <span>PALETS: <span id="stat-ped-palets" style="color:var(--verde-vivo)">—</span></span>
       <span>BULTOS: <span id="stat-ped-bultos" style="color:var(--texto)">—</span></span>
+      <span id="stat-nuevos-wrap" style="display:none">NUEVOS: <span id="stat-ped-nuevos" style="color:#ff3d00;font-weight:800">0</span></span>
     </div>
     <div style="display:flex;gap:8px;margin-left:auto;align-items:center">
       <div style="position:relative">
@@ -1088,6 +1089,19 @@ var pedidosFiltradosCache = [];
 function mostrarTopbarPedidos() {
   var topbar = document.getElementById('pedidos-topbar');
   if (topbar && window.innerWidth > 480) topbar.style.display = 'flex';
+}
+
+
+function actualizarContadorNuevos() {
+  if (!pedidosDataCache || !fechaSeleccionada) return;
+  var lista = (pedidosDataCache[fechaSeleccionada] || []).map(function(p) {
+    return Object.assign({}, p, {fecha_salida: fechaSeleccionada});
+  });
+  var n = contarNuevos(lista);
+  var wrap = document.getElementById('stat-nuevos-wrap');
+  var el = document.getElementById('stat-ped-nuevos');
+  if (el) el.textContent = n;
+  if (wrap) wrap.style.display = n > 0 ? 'inline' : 'none';
 }
 
 function actualizarStatsPedidos(lista) {
@@ -1500,6 +1514,32 @@ function initManDateCarousel(diasData) {
   }, 100);
 }
 
+
+// ===== PEDIDOS NUEVOS =====
+var pedidosVistos = {};
+
+function cargarPedidosVistos() {
+  try {
+    var raw = localStorage.getItem('ica_pedidos_vistos');
+    pedidosVistos = raw ? JSON.parse(raw) : {};
+  } catch(e) { pedidosVistos = {}; }
+}
+
+function marcarPedidoVisto(key) {
+  pedidosVistos[key] = true;
+  try { localStorage.setItem('ica_pedidos_vistos', JSON.stringify(pedidosVistos)); } catch(e) {}
+}
+
+function esPedidoNuevo(key) {
+  return !pedidosVistos[key];
+}
+
+function contarNuevos(lista) {
+  return lista.filter(function(p) {
+    return esPedidoNuevo(p.pedido + '|' + (p.producto||'') + '|' + (p.fecha_salida||''));
+  }).length;
+}
+
 // ===== ESTADO COMPARTIDO =====
 function saveEstado(pedido, tipo, valor) {
   try {
@@ -1873,6 +1913,7 @@ async function renderPedidos() {
 
 function renderPedidosFecha() {
   if (!pedidosDataCache || !fechaSeleccionada) return;
+  cargarPedidosVistos();
   mostrarTopbarPedidos();
   pedidosFiltradosCache = [];
   // Reset filters
@@ -1914,10 +1955,13 @@ function renderListaPedidos(pedidosFiltrados) {
       const btnConfClass = (estado === 'confeccionado' || estado === 'cargado') ? 'active' : '';
       const btnCargClass = estado === 'cargado' ? 'active' : '';
 
+      const pedidoKey = p.pedido + '|' + (p.producto||'') + '|' + (p.fecha_salida||'');
+      const esNuevo = esPedidoNuevo(pedidoKey);
       const card = document.createElement('div');
       card.className = 'pedido-card';
       card.id = cardId;
       card.style.cssText = borderStyle;
+      card.dataset.pedidoKey = pedidoKey;
 
       const header = document.createElement('div');
       header.className = 'pedido-card-header';
@@ -2026,11 +2070,20 @@ function renderListaPedidos(pedidosFiltrados) {
         card.appendChild(tbadge);
       }
 
+      // NUEVO badge
+      if (esNuevo) {
+        var nuevoBadge = document.createElement('div');
+        nuevoBadge.className = 'badge-nuevo';
+        nuevoBadge.style.cssText = 'position:absolute;top:10px;right:12px;background:#ff3d00;color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.58rem;letter-spacing:0.1em;padding:2px 7px;border-radius:4px;pointer-events:none;z-index:2';
+        nuevoBadge.textContent = 'NUEVO';
+        card.style.position = 'relative';
+        card.appendChild(nuevoBadge);
+      }
       card.appendChild(header);
       card.appendChild(detail);
       container.appendChild(card);
     });
-
+  actualizarContadorNuevos();
 }
 
 // ===== AJUSTE PERSONAS PLANIFICACION =====
@@ -2050,6 +2103,17 @@ function togglePedido(id) {
   const isOpen = detail.style.display === 'block';
   detail.style.display = isOpen ? 'none' : 'block';
   if (card) card.style.borderColor = isOpen ? '' : 'var(--verde-vivo)';
+  // Mark as seen - remove NUEVO badge
+  if (!isOpen && card) {
+    var nuevoBadge = card.querySelector('.badge-nuevo');
+    if (nuevoBadge) {
+      var key = card.dataset.pedidoKey;
+      if (key) marcarPedidoVisto(key);
+      nuevoBadge.style.transition = 'opacity 0.3s';
+      nuevoBadge.style.opacity = '0';
+      setTimeout(function(){ nuevoBadge.remove(); actualizarContadorNuevos(); }, 300);
+    }
+  }
 }
 
 // ===== MARCAR ESTADO PEDIDO =====
