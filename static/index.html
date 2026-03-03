@@ -7,30 +7,55 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet">
 <style>
 :root {
-  --verde: #2d6a2d;
-  --verde-vivo: #3d8b3d;
-  --verde-dim: #1e4d1e;
-  --verde-glow: rgba(61,139,61,0.25);
-  --negro: #070b07;
-  --panel: #0d120d;
-  --card: #121812;
-  --card2: #171d17;
-  --borde: #1e2a1e;
-  --borde2: #243024;
-  --texto: #dce8dc;
-  --texto2: #8a9e8a;
-  --texto3: #5a6e5a;
-  --amarillo: #c8a84b;
-  --amarillo-dim: rgba(200,168,75,0.15);
-  --rojo: #c0392b;
-  --rojo-dim: rgba(192,57,43,0.15);
-  --azul: #2979FF;
-  --azul-dim: rgba(41,121,255,0.15);
+  --verde: #1b5e20;
+  --verde-vivo: #2e7d32;
+  --verde-dim: #e8f5e9;
+  --verde-glow: rgba(46,125,50,0.15);
+  --negro: #f5f7f5;
+  --panel: #ffffff;
+  --card: #ffffff;
+  --card2: #f0f4f0;
+  --borde: #dde7dd;
+  --borde2: #c8d8c8;
+  --texto: #1a2e1a;
+  --texto2: #4a6b4a;
+  --texto3: #7a9a7a;
+  --amarillo: #e65100;
+  --amarillo-dim: rgba(230,81,0,0.10);
+  --rojo: #c62828;
+  --rojo-dim: rgba(198,40,40,0.10);
+  --azul: #1565c0;
+  --azul-dim: rgba(21,101,192,0.10);
+}
+
+/* Dark mode on mobile devices */
+@media (max-width: 480px) {
+  :root {
+    --verde: #2d6a2d;
+    --verde-vivo: #3d8b3d;
+    --verde-dim: #1e4d1e;
+    --verde-glow: rgba(61,139,61,0.25);
+    --negro: #070b07;
+    --panel: #0d120d;
+    --card: #121812;
+    --card2: #171d17;
+    --borde: #1e2a1e;
+    --borde2: #243024;
+    --texto: #dce8dc;
+    --texto2: #8a9e8a;
+    --texto3: #5a6e5a;
+    --amarillo: #c8a84b;
+    --amarillo-dim: rgba(200,168,75,0.15);
+    --rojo: #c0392b;
+    --rojo-dim: rgba(192,57,43,0.15);
+    --azul: #2979FF;
+    --azul-dim: rgba(41,121,255,0.15);
+  }
 }
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 body {
   background: var(--negro);
-  background-image: radial-gradient(ellipse at 10% 0%, rgba(45,106,45,0.1) 0%, transparent 50%);
+  background-image: radial-gradient(ellipse at 10% 0%, rgba(46,125,50,0.06) 0%, transparent 60%);
   color: var(--texto);
   font-family: 'DM Sans', sans-serif;
   height: 100dvh;
@@ -55,9 +80,9 @@ header::after {
   content: '';
   position: absolute;
   bottom: 0; left: 16px; right: 16px;
-  height: 1px;
+  height: 2px;
   background: linear-gradient(90deg, transparent, var(--verde-vivo), transparent);
-  opacity: 0.5;
+  opacity: 0.6;
 }
 .logo { display:flex; align-items:center; gap:10px; }
 .logo-img { height:30px; width:auto; opacity:0.85; }
@@ -471,6 +496,140 @@ textarea::placeholder { color:var(--texto3); }
   font-size:0.72rem; padding:6px 12px; cursor:pointer; white-space:nowrap;
 }
 
+
+/* ===== DESKTOP LIGHT MODE ENHANCEMENTS ===== */
+@media (min-width: 481px) {
+  body {
+    background: linear-gradient(135deg, #f0f7f0 0%, #e8f4e8 40%, #f5f9f5 100%);
+  }
+  header {
+    background: #ffffff;
+    border-bottom: 1px solid #dde7dd;
+    box-shadow: 0 2px 12px rgba(46,125,50,0.08);
+  }
+  .screen {
+    background: transparent;
+  }
+  .pedido-card, .screen-content .card, .plan-dia-card {
+    background: #ffffff;
+    box-shadow: 0 2px 8px rgba(30,60,30,0.07), 0 1px 2px rgba(30,60,30,0.04);
+    border: 1px solid #e2ece2;
+    border-radius: 14px;
+    transition: box-shadow 0.18s, transform 0.18s;
+  }
+  .pedido-card:hover, .plan-dia-card:hover {
+    box-shadow: 0 6px 20px rgba(46,125,50,0.13), 0 2px 6px rgba(30,60,30,0.06);
+    transform: translateY(-1px);
+  }
+  .stat-card {
+    background: #ffffff;
+    box-shadow: 0 2px 10px rgba(30,60,30,0.08);
+    border: 1px solid #e2ece2;
+    border-radius: 14px;
+  }
+  .stat-card-value {
+    color: var(--verde-vivo);
+    font-size: 2.2rem;
+  }
+  .menu-item {
+    background: #ffffff;
+    box-shadow: 0 1px 6px rgba(30,60,30,0.06);
+    border: 1px solid #e8f0e8;
+    border-radius: 14px;
+    transition: box-shadow 0.15s, transform 0.15s;
+  }
+  .menu-item:hover {
+    box-shadow: 0 4px 16px rgba(46,125,50,0.12);
+    transform: translateX(3px);
+  }
+  .back-header {
+    background: #ffffff;
+    border-bottom: 1px solid #e2ece2;
+    box-shadow: 0 1px 4px rgba(30,60,30,0.05);
+  }
+  .pedido-num {
+    color: var(--verde-vivo) !important;
+    font-weight: 800;
+  }
+  .chip.verde {
+    background: #e8f5e9;
+    color: #1b5e20;
+    border: 1px solid #a5d6a7;
+  }
+  .chip.amarillo {
+    background: #fff3e0;
+    color: #e65100;
+    border: 1px solid #ffcc80;
+  }
+  .chip {
+    background: #f0f4f0;
+    color: #3a5a3a;
+    border: 1px solid #d0e0d0;
+  }
+  .action-btn.azul {
+    background: var(--azul);
+    color: #fff;
+  }
+  .action-btn.amarillo {
+    background: var(--amarillo);
+    color: #fff;
+  }
+  .action-btn.verde {
+    background: var(--verde-vivo);
+    color: #fff;
+  }
+  .modal-box {
+    background: #ffffff;
+    box-shadow: 0 20px 60px rgba(30,60,30,0.18);
+    border: 1px solid #e2ece2;
+  }
+  .tab-btn {
+    color: var(--texto2);
+  }
+  .tab-btn.active {
+    color: var(--verde-vivo);
+    border-bottom: 2px solid var(--verde-vivo);
+  }
+  .home-stats {
+    gap: 12px;
+  }
+  .greeting-card {
+    background: linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%);
+    color: #fff;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(46,125,50,0.25);
+  }
+  .greeting-card h2, .greeting-card p {
+    color: #fff !important;
+  }
+  .linea-card {
+    background: #ffffff;
+    border: 1px solid #e2ece2;
+    box-shadow: 0 2px 8px rgba(30,60,30,0.06);
+    border-radius: 12px;
+  }
+  .detail-row {
+    border-bottom: 1px solid #f0f4f0;
+    padding: 8px 0;
+  }
+  .detail-label {
+    color: var(--texto3);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .detail-value {
+    color: var(--texto);
+    font-weight: 600;
+  }
+  .menu-section-title {
+    color: var(--texto3);
+    font-size: 0.65rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin: 16px 0 8px;
+  }
+}
 </style>
 </head>
 <body>
@@ -1346,13 +1505,23 @@ function renderPedidosFecha() {
       actionBtns.appendChild(btnCarg);
 
       let detailHTML = '';
-      if (p.lote) detailHTML += '<div class="detail-row"><span class="detail-label" style="color:var(--verde-vivo)">&#127807; Lote</span><span class="detail-value" style="font-family:DM Mono,monospace;color:var(--verde-vivo);font-weight:700">' + p.lote + '</span></div>';
-      if (p.envase) detailHTML += '<div class="detail-row"><span class="detail-label" style="color:var(--azul)">&#128230; Envase</span><span class="detail-value" style="font-weight:700;color:var(--azul)">' + p.envase + '</span></div>';
-      if (p.matricula) detailHTML += '<div class="detail-row"><span class="detail-label">&#128663; Matrícula</span><span class="detail-value" style="font-family:DM Mono,monospace;font-weight:700;letter-spacing:0.05em">' + p.matricula + '</span></div>';
+      // Campos destacados arriba
+      if (p.lote)        detailHTML += '<div class="detail-row"><span class="detail-label" style="color:var(--verde-vivo)">&#127807; Lote</span><span class="detail-value" style="font-family:DM Mono,monospace;color:var(--verde-vivo);font-weight:700">' + p.lote + '</span></div>';
+      if (p.envase)      detailHTML += '<div class="detail-row"><span class="detail-label" style="color:var(--azul)">&#128230; Envase</span><span class="detail-value" style="font-weight:700;color:var(--azul)">' + p.envase + '</span></div>';
+      if (p.tipo)        detailHTML += '<div class="detail-row"><span class="detail-label">&#127807; Tipo cult.</span><span class="detail-value">' + p.tipo + '</span></div>';
+      if (p.tipo_palet)  detailHTML += '<div class="detail-row"><span class="detail-label">&#128263; Tipo palet</span><span class="detail-value">' + p.tipo_palet + '</span></div>';
+      if (p.kilos)       detailHTML += '<div class="detail-row"><span class="detail-label">&#9878; Kilos</span><span class="detail-value">' + p.kilos + '</span></div>';
+      // Transporte
+      if (p.matricula)   detailHTML += '<div class="detail-row"><span class="detail-label">&#128663; Matrícula</span><span class="detail-value" style="font-family:DM Mono,monospace;font-weight:700;letter-spacing:0.05em">' + p.matricula + '</span></div>';
       if (p.transportista) detailHTML += '<div class="detail-row"><span class="detail-label">&#128666; Transportista</span><span class="detail-value" style="font-weight:600">' + p.transportista + '</span></div>';
-      if (p.telefono) detailHTML += '<div class="detail-row"><span class="detail-label">&#128222; Teléfono</span><span class="detail-value"><a href="tel:' + p.telefono + '" style="color:var(--verde-vivo);text-decoration:none">' + p.telefono + '</a></span></div>';
-      if (p.cliente) detailHTML += '<div class="detail-row"><span class="detail-label">Cliente</span><span class="detail-value">' + p.cliente + '</span></div>';
-      if (p.destino) detailHTML += '<div class="detail-row"><span class="detail-label">Destino</span><span class="detail-value">' + p.destino + '</span></div>';
+      if (p.telefono)    detailHTML += '<div class="detail-row"><span class="detail-label">&#128222; Teléfono</span><span class="detail-value"><a href="tel:' + p.telefono + '" style="color:var(--verde-vivo);text-decoration:none">' + p.telefono + '</a></span></div>';
+      // Fechas
+      if (p.fecha_pedido)  detailHTML += '<div class="detail-row"><span class="detail-label">&#128197; F. Pedido</span><span class="detail-value">' + p.fecha_pedido + '</span></div>';
+      if (p.fecha_llegada) detailHTML += '<div class="detail-row"><span class="detail-label">&#128197; F. Llegada</span><span class="detail-value">' + p.fecha_llegada + '</span></div>';
+      // Cliente y destino
+      if (p.cliente)     detailHTML += '<div class="detail-row"><span class="detail-label">Cliente</span><span class="detail-value">' + p.cliente + '</span></div>';
+      if (p.destino)     detailHTML += '<div class="detail-row"><span class="detail-label">Destino</span><span class="detail-value">' + p.destino + '</span></div>';
+      if (p.referencia)  detailHTML += '<div class="detail-row"><span class="detail-label">Referencia</span><span class="detail-value" style="font-family:DM Mono,monospace;font-size:0.75rem">' + p.referencia + '</span></div>';
       detail.innerHTML = detailHTML;
       detail.appendChild(actionBtns);
 
