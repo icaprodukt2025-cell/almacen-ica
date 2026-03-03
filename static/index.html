@@ -1253,6 +1253,114 @@ function ajustarUILinea() {
   if (loteBtn) loteBtn.style.display = 'inline-flex';
 }
 
+
+// ===== DESTRIO DEL DIA =====
+var destrioDelDia = [];
+
+function abrirModalDestrio() {
+  var hoy = new Date();
+  var fechaStr = hoy.toLocaleDateString('es-ES', {weekday:'long', day:'numeric', month:'long'});
+  var el = document.getElementById('modal-destrio-fecha');
+  if (el) el.textContent = fechaStr;
+  document.getElementById('destrio-lote').value = '';
+  document.getElementById('destrio-kg').value = '';
+  renderDestrioLista();
+  document.getElementById('modal-destrio').classList.add('open');
+  setTimeout(function(){ document.getElementById('destrio-lote').focus(); }, 100);
+}
+
+function renderDestrioLista() {
+  var el = document.getElementById('destrio-lista');
+  if (!el) return;
+  if (destrioDelDia.length === 0) {
+    el.innerHTML = '<div style="text-align:center;color:var(--texto3);font-size:0.72rem;padding:8px">Sin registros hoy</div>';
+    return;
+  }
+  var html = '<div style="font-family:DM Mono,monospace;font-size:0.7rem;border-top:1px solid var(--borde);padding-top:10px">';
+  var total = 0;
+  destrioDelDia.forEach(function(d) {
+    total += parseFloat(d.kg) || 0;
+    html += '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--borde)">';
+    html += '<span style="color:var(--verde-vivo)">&#127807; Lote ' + d.lote + '</span>';
+    html += '<span style="color:var(--texto);font-weight:700">' + d.kg + ' kg</span>';
+    html += '</div>';
+  });
+  html += '<div style="display:flex;justify-content:space-between;padding:6px 0;font-weight:800;color:var(--texto)">';
+  html += '<span>TOTAL</span><span>' + Math.round(total*10)/10 + ' kg</span></div>';
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+async function guardarDestrio() {
+  var lote = document.getElementById('destrio-lote').value.trim();
+  var kg   = document.getElementById('destrio-kg').value.trim();
+  if (!lote || !kg) { alert('Introduce lote y kg'); return; }
+
+  var btn = document.querySelector('#modal-destrio .modal-confirm');
+  btn.textContent = 'Guardando...'; btn.disabled = true;
+
+  try {
+    var resp = await fetch('/api/guardar-lote', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','X-Session-Token': sessionToken||''},
+      body: JSON.stringify({
+        lote: lote, destrio: kg,
+        usuario: currentUser ? currentUser.nombre : 'Linea',
+        fecha: new Date().toLocaleDateString('es-ES')
+      })
+    });
+    var data = await resp.json();
+    if (data.ok) {
+      destrioDelDia.push({lote: lote, kg: kg});
+      document.getElementById('destrio-lote').value = '';
+      document.getElementById('destrio-kg').value = '';
+      renderDestrioLista();
+      mostrarToast('&#9888; Destrío guardado: ' + kg + ' kg lote ' + lote);
+    } else {
+      alert('Error: ' + (data.error||'desconocido'));
+    }
+  } catch(e) { alert('Error de conexión'); }
+  btn.textContent = '+ Añadir'; btn.disabled = false;
+}
+
+// Update destrio button label with today's date
+function actualizarLabelDestrio() {
+  var el = document.getElementById('btn-destrio-label');
+  if (!el) return;
+  var hoy = new Date();
+  var d = String(hoy.getDate()).padStart(2,'0');
+  var m = String(hoy.getMonth()+1).padStart(2,'0');
+  el.textContent = 'DESTRÍO DEL DÍA · ' + d + '/' + m;
+}
+
+// Auto-assign palets when pedidos load
+function autoAsignarPalets(pedidos) {
+  if (!pedidos || pedidos.length === 0) return;
+  var hoy = new Date().toLocaleDateString('es-ES', {day:'2-digit',month:'2-digit',year:'numeric'}).replace(/\//g, '/');
+  pedidos.forEach(function(p) {
+    if (!p.palets || parseFloat(p.palets) === 0) return;
+    var key = p.pedido + '|' + (p.producto||'');
+    // Check not already assigned
+    if (pedidosAsignados && pedidosAsignados[key]) return;
+    var numPalets = Math.ceil(parseFloat(String(p.palets).replace(',','.')) || 0);
+    for (var i = 1; i <= numPalets; i++) {
+      fetch('/api/manipulado/asignar', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json','X-Session-Token': sessionToken||''},
+        body: JSON.stringify({
+          pedido: p.pedido,
+          producto: p.producto||'',
+          cliente: p.cliente||'',
+          bultos: p.bultos||'',
+          palet: i,
+          linea: 1,
+          lote: p.lote||''
+        })
+      });
+    }
+  });
+}
+
 // ===== ESTADO COMPARTIDO =====
 function saveEstado(pedido, tipo, valor) {
   try {
@@ -1385,6 +1493,7 @@ function goTo(screen) {
 
 // ===== SINCRONIZACION =====
 async function sincronizar() {
+  actualizarLabelDestrio();
   const dot = document.getElementById('statusDot');
   const txt = document.getElementById('statusText');
   txt.textContent = '...';
@@ -1696,22 +1805,9 @@ function renderListaPedidos(pedidosFiltrados) {
       detail.className = 'pedido-detail';
       detail.id = 'detail-' + cardId;
 
-      const btnConfecc = document.createElement('button');
-      const enConfecc = (estadosPedidos[p.pedido] === 'en_confeccion');
-      btnConfecc.className = 'action-btn azul' + (enConfecc ? ' active' : '');
-      btnConfecc.innerHTML = '&#128203; Traza';
-      btnConfecc.addEventListener('click', function(e) { e.stopPropagation(); abrirModalConfeccion(p.pedido, p.producto, p.cliente, p.bultos, p.palets); });
+      const btnConfecc = null; // Traza removed - auto handled
 
-      const btnAsgL = document.createElement('button');
-      btnAsgL.className = 'action-btn';
-      btnAsgL.style.cssText = 'background:var(--azul);color:#fff;border:none;border-radius:8px;padding:8px 10px;font-family:Syne,sans-serif;font-weight:700;font-size:0.72rem;cursor:pointer;white-space:nowrap';
-      // Check if already assigned
-      var yaAsignado = pedidosAsignados && pedidosAsignados[p.pedido + '|' + (p.producto||'')];
-      btnAsgL.textContent = yaAsignado ? '\u2713 Asignado' : '+ Asignar L';
-      if (yaAsignado) { btnAsgL.style.background = 'var(--verde)'; btnAsgL.style.opacity = '0.7'; }
-      (function(pp) {
-        btnAsgL.addEventListener('click', function(e) { e.stopPropagation(); abrirModalAsignar(pp.pedido, pp.producto, pp.cliente, pp.bultos); });
-      })(p);
+      const btnAsgL = null; // Auto-assign - no manual button needed
 
       const btnConf = document.createElement('button');
       btnConf.className = 'action-btn amarillo' + (btnConfClass ? ' active' : '');
@@ -1725,7 +1821,6 @@ function renderListaPedidos(pedidosFiltrados) {
 
       const actionBtns = document.createElement('div');
       actionBtns.className = 'action-btns';
-      actionBtns.appendChild(btnAsgL);
       actionBtns.appendChild(btnConfecc);
       actionBtns.appendChild(btnConf);
       actionBtns.appendChild(btnCarg);
@@ -2906,6 +3001,16 @@ function renderManLista() {
   var container = document.getElementById('man-lista');
   if (!container) return;
   var items = manData.filter(function(it){ return it.estado === manFiltro; });
+
+  // Update resumen bar
+  var resBar = document.getElementById('man-resumen-bar');
+  if (resBar) {
+    var enEspera = manData.filter(function(x){ return x.estado==='espera'; }).length;
+    var enCurso  = manData.filter(function(x){ return x.estado==='en_curso'; }).length;
+    var finalizados = manData.filter(function(x){ return x.estado==='finalizado'; }).length;
+    resBar.textContent = enEspera + ' espera · ' + enCurso + ' en curso · ' + finalizados + ' finalizados';
+  }
+
   if (items.length === 0) {
     container.innerHTML = '<div class="empty-state"><p>Sin palets en este estado</p></div>';
     return;
@@ -2913,32 +3018,37 @@ function renderManLista() {
   var html = '';
   items.forEach(function(it) {
     var borderColor = it.estado === 'en_curso' ? 'var(--verde-vivo)' : it.estado === 'finalizado' ? 'var(--borde)' : 'var(--azul)';
-    html += '<div style="background:var(--card);border:1px solid ' + borderColor + ';border-radius:12px;padding:12px 14px;margin-bottom:10px" data-row="' + it.row + '">';
+    var bgColor = it.estado === 'en_curso' ? 'rgba(46,125,50,0.05)' : 'var(--card)';
+    html += '<div style="background:' + bgColor + ';border:1px solid ' + borderColor + ';border-radius:12px;padding:12px 14px;margin-bottom:10px">';
     // Header
     html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">';
-    html += '<div>';
-    html += '<div style="font-family:DM Mono,monospace;font-size:0.58rem;color:var(--texto3)">L' + it.linea + (it.pedido ? ' &middot; #' + it.pedido : ' &middot; MANUAL') + '</div>';
-    html += '<div style="font-weight:700;font-size:0.9rem;color:var(--texto)">' + (it.producto||'Sin producto') + '</div>';
+    html += '<div style="flex:1">';
+    html += '<div style="font-family:DM Mono,monospace;font-size:0.58rem;color:var(--texto3)">' + (it.pedido ? '#' + it.pedido : 'MANUAL') + ' · LÍNEA DE CONFECCIÓN</div>';
+    html += '<div style="font-weight:700;font-size:0.92rem;color:var(--texto);margin-top:2px">' + (it.producto||'Sin producto') + '</div>';
     if (it.cliente) html += '<div style="font-size:0.72rem;color:var(--texto2)">' + it.cliente + '</div>';
+    if (it.lote) html += '<div style="font-family:DM Mono,monospace;font-size:0.65rem;color:var(--verde-vivo);margin-top:3px">&#127807; Lote ' + it.lote + '</div>';
     html += '</div>';
-    html += '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.1rem;color:var(--azul)">P' + (it.palet||'?') + '</div>';
+    // Palet badge
+    if (it.palet) {
+      html += '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.3rem;color:var(--azul);background:var(--azul-dim);border-radius:8px;padding:4px 10px;margin-left:8px">P' + it.palet + '</div>';
+    }
     html += '</div>';
-    // Info row
-    html += '<div style="display:flex;gap:12px;font-family:DM Mono,monospace;font-size:0.62rem;color:var(--texto3);margin-bottom:10px">';
-    if (it.bultos) html += '<span>' + it.bultos + ' bul</span>';
-    if (it.personas) html += '<span>' + it.personas + ' pers</span>';
-    if (it.inicio) html += '<span>Inicio ' + it.inicio + '</span>';
-    if (it.minutos) html += '<span>' + it.minutos + ' min</span>';
+    // Info chips
+    html += '<div style="display:flex;gap:8px;flex-wrap:wrap;font-family:DM Mono,monospace;font-size:0.62rem;color:var(--texto3);margin-bottom:10px">';
+    if (it.bultos) html += '<span style="background:var(--card2);padding:2px 7px;border-radius:5px">' + it.bultos + ' bul</span>';
+    if (it.inicio) html += '<span style="background:var(--azul-dim);color:var(--azul);padding:2px 7px;border-radius:5px">&#9654; ' + it.inicio + '</span>';
+    if (it.fin)    html += '<span style="background:var(--verde-dim);color:var(--verde-vivo);padding:2px 7px;border-radius:5px">&#10003; ' + it.fin + '</span>';
+    if (it.minutos) html += '<span style="background:var(--card2);padding:2px 7px;border-radius:5px">' + it.minutos + ' min</span>';
     html += '</div>';
     // Action buttons
     html += '<div style="display:flex;gap:8px">';
     if (it.estado === 'espera') {
-      html += '<button onclick="iniciarItemMan(' + it.row + ')" style="flex:1;padding:8px;background:var(--azul);border:none;border-radius:8px;color:#fff;font-family:Syne,sans-serif;font-weight:700;font-size:0.75rem;cursor:pointer">&#9654; Iniciar</button>';
-      html += '<button onclick="anularItemMan(' + it.row + ')" style="padding:8px 12px;background:transparent;border:1px solid #e53935;border-radius:8px;color:#e53935;font-family:Syne,sans-serif;font-weight:700;font-size:0.75rem;cursor:pointer">&#10005;</button>';
+      html += '<button onclick="iniciarItemMan(' + it.row + ')" style="flex:1;padding:10px;background:var(--azul);border:none;border-radius:9px;color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.8rem;cursor:pointer">&#9654; Iniciar</button>';
+      html += '<button onclick="anularItemMan(' + it.row + ')" style="padding:10px 14px;background:transparent;border:1px solid #e53935;border-radius:9px;color:#e53935;font-weight:700;font-size:0.8rem;cursor:pointer">&#10005;</button>';
     } else if (it.estado === 'en_curso') {
-      html += '<button onclick="finalizarItemMan(' + it.row + ',\'' + (it.inicio||'') + '\')" style="flex:1;padding:8px;background:var(--verde);border:none;border-radius:8px;color:#fff;font-family:Syne,sans-serif;font-weight:700;font-size:0.75rem;cursor:pointer">&#10003; Finalizar</button>';
+      html += '<button onclick="finalizarItemMan(' + it.row + ',\'' + (it.inicio||'') + '\',\'' + (it.lote||'') + '\')" style="flex:1;padding:10px;background:var(--verde-vivo);border:none;border-radius:9px;color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.8rem;cursor:pointer">&#10003; Finalizar</button>';
     } else if (it.estado === 'finalizado') {
-      html += '<span style="font-size:0.7rem;color:var(--verde-vivo)">&#10003; Completado ' + (it.fin||'') + '</span>';
+      html += '<span style="font-size:0.75rem;color:var(--verde-vivo);font-weight:700">&#10003; Confeccionado ' + (it.fin||'') + '</span>';
       html += '<button onclick="anularItemMan(' + it.row + ')" style="margin-left:auto;padding:6px 10px;background:transparent;border:1px solid #e53935;border-radius:8px;color:#e53935;font-size:0.7rem;cursor:pointer">Anular</button>';
     }
     html += '</div></div>';
@@ -3063,11 +3173,12 @@ function iniciarItemMan(row) {
   manItemActivo = row;
   var item = manData.find(function(it){ return it.row === row; });
   if (!item) return;
-  manPersonasIni = 10;
-  document.getElementById('man-personas-val').textContent = 10;
-  document.getElementById('man-ini-title').textContent = 'Iniciar - L' + item.linea + ' Palet ' + item.palet;
-  document.getElementById('man-ini-sub').textContent = item.producto || '';
+  document.getElementById('man-ini-title').textContent = 'Iniciar Palet';
+  document.getElementById('man-ini-sub').textContent = (item.producto || '') + (item.pedido ? ' · #' + item.pedido : '');
+  document.getElementById('man-ini-palet').value = item.palet || '';
+  document.getElementById('man-ini-lote').value = item.lote || '';
   document.getElementById('modal-man-iniciar').classList.add('open');
+  setTimeout(function(){ document.getElementById('man-ini-palet').focus(); }, 100);
 }
 
 function ajManPersonas(d) {
@@ -3075,10 +3186,13 @@ function ajManPersonas(d) {
   document.getElementById('man-personas-val').textContent = manPersonasIni;
 }
 
-function confirmarIniciarMan() {
+function confirmarInicioMan() {
+  var paletVal = document.getElementById('man-ini-palet').value.trim();
+  var loteVal  = document.getElementById('man-ini-lote').value.trim();
+  if (!paletVal) { alert('Introduce el número de palet'); return; }
   var now = new Date();
   var inicio = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
-  var body = JSON.stringify({ row: manItemActivo, estado: 'en_curso', inicio: inicio, personas: manPersonasIni });
+  var body = JSON.stringify({ row: manItemActivo, estado: 'en_curso', inicio: inicio, palet: paletVal, lote: loteVal, personas: 1 });
   var xhr = new XMLHttpRequest();
   xhr.open('POST', '/api/manipulado/estado', true);
   xhr.setRequestHeader('Content-Type', 'application/json');
@@ -3086,14 +3200,14 @@ function confirmarIniciarMan() {
   xhr.onreadystatechange = function() {
     if (xhr.readyState === 4) {
       document.getElementById('modal-man-iniciar').classList.remove('open');
-      mostrarToast('\u25b6 Palet iniciado', 'ok');
+      mostrarToast('\u25b6 Palet ' + paletVal + ' iniciado', 'ok');
       cargarManipulado();
     }
   };
   xhr.send(body);
 }
 
-function finalizarItemMan(row, inicio) {
+function finalizarItemMan(row, inicio, lote) {
   var now = new Date();
   var fin = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
   var minutos = 0;
@@ -3103,23 +3217,16 @@ function finalizarItemMan(row, inicio) {
     minutos = Math.round((now - ini) / 60000);
   }
   var item = manData.find(function(it){ return it.row === row; });
-  var body = JSON.stringify({ row: row, estado: 'finalizado', inicio: inicio, fin: fin, minutos: minutos, personas: item ? item.personas : '' });
+  var body = JSON.stringify({ row: row, estado: 'finalizado', inicio: inicio, fin: fin, minutos: minutos, lote: lote || (item ? item.lote : ''), personas: 1 });
   var xhr = new XMLHttpRequest();
   xhr.open('POST', '/api/manipulado/estado', true);
   xhr.setRequestHeader('Content-Type', 'application/json');
   xhr.setRequestHeader('X-Session-Token', sessionToken);
   xhr.onreadystatechange = function() {
     if (xhr.readyState === 4) {
-      mostrarToast('\u2713 Palet finalizado', 'ok');
-      // Track palet finalizado para traza
+      mostrarToast('\u2713 Palet confeccionado', 'ok');
+      // Mark pedido as confeccionado
       if (item && item.pedido) {
-        var mk = item.pedido + '|' + (item.producto||'');
-        if (!paletsManipuladoFinalizados[mk]) paletsManipuladoFinalizados[mk] = [];
-        var pn = String(item.palet);
-        if (paletsManipuladoFinalizados[mk].indexOf(pn) === -1) paletsManipuladoFinalizados[mk].push(pn);
-        // Save to Estado sheet
-        saveEstado(item.pedido, 'palet_man_fin', mk + '|P' + pn);
-        // Mark pedido as confeccionado
         estadosPedidos[item.pedido] = 'confeccionado';
         saveEstado(item.pedido, 'estado_pedido', 'confeccionado');
       }
@@ -3224,9 +3331,13 @@ function anularItemMan(row) {
     <button id="btn-add-lote" onclick="abrirModalLote()" style="display:none;background:var(--verde-vivo);border:none;border-radius:8px;color:#fff;font-family:'Syne',sans-serif;font-weight:700;font-size:0.72rem;padding:7px 12px;cursor:pointer;align-items:center;gap:5px">&#127807; Lote</button>
   </div>
 
-  <!-- LINEAS PANEL -->
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:10px 12px;border-bottom:1px solid var(--borde);flex-shrink:0" id="man-lineas-panel">
-    <!-- rendered by JS -->
+  <!-- LINEA CONFECCION PANEL -->
+  <div style="padding:10px 14px;border-bottom:1px solid var(--borde);flex-shrink:0;display:flex;align-items:center;gap:10px">
+    <div style="background:var(--verde-dim);border:1px solid var(--verde-vivo);border-radius:10px;padding:8px 16px;display:flex;align-items:center;gap:8px">
+      <span style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.8rem;color:var(--verde-vivo)">&#127981; LÍNEA DE CONFECCIÓN</span>
+      <span id="man-linea-estado" style="font-family:'DM Mono',monospace;font-size:0.65rem;color:var(--texto3)">activa</span>
+    </div>
+    <div id="man-resumen-bar" style="font-family:'DM Mono',monospace;font-size:0.65rem;color:var(--texto3);margin-left:auto;text-align:right"></div>
   </div>
 
   <!-- TABS -->
@@ -3237,27 +3348,18 @@ function anularItemMan(row) {
   </div>
 
   <div class="scroll-content" id="man-lista"></div>
+
+  <!-- DESTRIO DEL DIA BUTTON - always visible at bottom -->
+  <div style="flex-shrink:0;padding:12px 14px;border-top:1px solid var(--borde);background:var(--panel)">
+    <button onclick="abrirModalDestrio()" id="btn-destrio-dia" style="width:100%;padding:14px;border-radius:12px;border:2px solid var(--amarillo);background:var(--amarillo-dim);color:var(--amarillo);font-family:'Syne',sans-serif;font-weight:800;font-size:0.85rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
+      <span style="font-size:1.2rem">&#9888;</span>
+      <span id="btn-destrio-label">DESTRÍO DEL DÍA</span>
+    </button>
+  </div>
 </div>
 
 <!-- MODAL ASIGNAR LINEA (desde pedidos) -->
-<div class="modal-overlay" id="modal-asignar">
-  <div class="modal-box">
-    <div class="modal-title">Asignar a L&#237;nea</div>
-    <div class="modal-sub" id="modal-asignar-sub"></div>
-    <label class="modal-label">L&#237;nea</label>
-    <div style="display:flex;gap:8px;margin-bottom:14px">
-      <button id="asg-l1" onclick="selAsignarLinea(1)" style="flex:1;padding:12px 0;border-radius:8px;border:2px solid var(--verde-vivo);background:var(--verde);color:#fff;font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;cursor:pointer">L1</button>
-      <button id="asg-l2" onclick="selAsignarLinea(2)" style="flex:1;padding:12px 0;border-radius:8px;border:1px solid var(--borde2);background:var(--card);color:var(--texto2);font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;cursor:pointer">L2</button>
-      <button id="asg-l3" onclick="selAsignarLinea(3)" style="flex:1;padding:12px 0;border-radius:8px;border:1px solid var(--borde2);background:var(--card);color:var(--texto2);font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;cursor:pointer">L3</button>
-    </div>
-    <label class="modal-label">N&#250;mero de Palet</label>
-    <input class="modal-input" type="text" id="asg-palet" placeholder="Ej: 1" inputmode="numeric">
-    <label class="modal-label" style="margin-top:4px">Observaciones <span style="color:var(--texto3)">(opcional)</span></label>
-    <input class="modal-input" type="text" id="asg-obs" placeholder="Notas...">
-    <button class="modal-save" onclick="confirmarAsignar()">Asignar</button>
-    <button class="modal-cancel" onclick="document.getElementById('modal-asignar').classList.remove('open')">Cancelar</button>
-  </div>
-</div>
+<div class="modal-overlay" id="modal-asignar" style="display:none"></div>
 
 <!-- MODAL ENTRADA MANUAL -->
 <div class="modal-overlay" id="modal-manual">
@@ -3292,31 +3394,26 @@ function anularItemMan(row) {
 <!-- MODAL INICIAR DESDE MANIPULADO -->
 <div class="modal-overlay" id="modal-man-iniciar">
   <div class="modal-box">
-    <div class="modal-title" id="man-ini-title">Iniciar Palet</div>
+    <div class="modal-title" id="man-ini-title">&#9654; Iniciar Palet</div>
     <div class="modal-sub" id="man-ini-sub"></div>
-    <label class="modal-label">Personas en l&#237;nea</label>
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
-      <button onclick="ajManPersonas(-1)" style="background:var(--card2);border:1px solid var(--borde2);color:var(--texto);border-radius:6px;padding:8px 16px;cursor:pointer;font-size:1.1rem">-</button>
-      <span id="man-personas-val" style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.6rem;color:var(--verde-vivo);min-width:40px;text-align:center">10</span>
-      <button onclick="ajManPersonas(1)" style="background:var(--card2);border:1px solid var(--borde2);color:var(--texto);border-radius:6px;padding:8px 16px;cursor:pointer;font-size:1.1rem">+</button>
+    <div style="display:flex;flex-direction:column;gap:12px;margin-top:16px">
+      <div>
+        <label class="modal-label">Nº Palet</label>
+        <input class="modal-input" type="number" id="man-ini-palet" placeholder="Ej: 1" inputmode="numeric" style="font-size:1.1rem;font-weight:700">
+      </div>
+      <div>
+        <label class="modal-label">Lote</label>
+        <input class="modal-input" type="text" id="man-ini-lote" placeholder="Ej: 1005" inputmode="numeric">
+      </div>
     </div>
-    <button class="modal-save" style="background:var(--azul)" onclick="confirmarIniciarMan()">&#9654; Iniciar cronometro</button>
-    <button class="modal-cancel" onclick="document.getElementById('modal-man-iniciar').classList.remove('open')">Cancelar</button>
+    <div style="display:flex;gap:8px;margin-top:18px">
+      <button class="modal-cancel" onclick="document.getElementById('modal-man-iniciar').classList.remove('open')">Cancelar</button>
+      <button class="modal-confirm" onclick="confirmarInicioMan()">&#9654; Iniciar</button>
+    </div>
   </div>
 </div>
 
-
-<!-- MODAL RESUMEN POR PRODUCTO -->
-<div class="modal-overlay" id="modal-resumen-productos">
-  <div class="modal-box" style="max-width:560px;max-height:80vh;overflow:hidden;display:flex;flex-direction:column">
-    <div class="modal-title">&#128202; Resumen por Producto</div>
-    <div class="modal-sub" id="modal-resumen-fecha"></div>
-    <div id="modal-resumen-body" style="overflow-y:auto;flex:1;margin-top:12px"></div>
-    <button class="modal-cancel" onclick="document.getElementById('modal-resumen-productos').classList.remove('open')">Cerrar</button>
-  </div>
-</div>
-
-<!-- MODAL AÑADIR LOTE / DESTRIO -->
+<!--- MODAL AÑADIR LOTE / DESTRIO -->
 <div class="modal-overlay" id="modal-lote-destrio">
   <div class="modal-box" style="max-width:380px">
     <div class="modal-title">&#127807; Añadir Lote</div>
@@ -3334,6 +3431,30 @@ function anularItemMan(row) {
     <div style="display:flex;gap:8px;margin-top:18px">
       <button class="modal-cancel" onclick="document.getElementById('modal-lote-destrio').classList.remove('open')">Cancelar</button>
       <button class="modal-confirm" onclick="guardarLoteDestrio()">&#10003; Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DESTRIO DEL DIA -->
+<div class="modal-overlay" id="modal-destrio">
+  <div class="modal-box" style="max-width:380px">
+    <div class="modal-title">&#9888; Destrío del Día</div>
+    <div class="modal-sub" id="modal-destrio-fecha"></div>
+    <div style="display:flex;flex-direction:column;gap:12px;margin-top:16px">
+      <div>
+        <label class="modal-label">Lote</label>
+        <input class="modal-input" type="text" id="destrio-lote" placeholder="Nº lote..." inputmode="numeric">
+      </div>
+      <div>
+        <label class="modal-label">Kg Destrío</label>
+        <input class="modal-input" type="number" step="0.1" id="destrio-kg" placeholder="Ej: 12.5" inputmode="decimal">
+      </div>
+    </div>
+    <!-- Lista de destrío del día -->
+    <div id="destrio-lista" style="margin-top:14px;max-height:180px;overflow-y:auto"></div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="modal-cancel" onclick="document.getElementById('modal-destrio').classList.remove('open')">Cerrar</button>
+      <button class="modal-confirm" onclick="guardarDestrio()">&#43; Añadir</button>
     </div>
   </div>
 </div>
