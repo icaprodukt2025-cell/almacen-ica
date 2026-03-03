@@ -1362,13 +1362,89 @@ function autoAsignarPalets(pedidos) {
 }
 
 
-function recargarPalets() {
+async function recargarPalets() {
   var btn = document.getElementById('btn-recargar-palets');
-  if (btn) { btn.textContent = '⏳ Cargando...'; btn.disabled = true; }
-  cargarManipulado(function() {
+  if (btn) { btn.innerHTML = '&#9203; Cargando...'; btn.disabled = true; }
+
+  try {
+    // 1. Load pedidos from API
+    var resp = await fetch('/api/planificacion', {
+      headers: { 'X-Session-Token': sessionToken || '' }
+    });
+    var data = await resp.json();
+    var dias = data.dias || {};
+
+    // 2. Get today's pedidos
+    var hoy = new Date().toLocaleDateString('es-ES', {
+      day: '2-digit', month: '2-digit', year: 'numeric'
+    });
+    var pedidosHoy = dias[hoy] || [];
+
+    // Also check pedidosDataCache for selected date
+    if (pedidosDataCache && fechaSeleccionada) {
+      var pedidosFecha = pedidosDataCache[fechaSeleccionada] || [];
+      pedidosHoy = pedidosHoy.concat(pedidosFecha.filter(function(p) {
+        return !pedidosHoy.find(function(x){ return x.pedido === p.pedido && x.producto === p.producto; });
+      }));
+    }
+
+    if (pedidosHoy.length === 0) {
+      mostrarToast('Sin pedidos para añadir hoy');
+      if (btn) { btn.innerHTML = '&#8635; Actualizar'; btn.disabled = false; }
+      return;
+    }
+
+    // 3. Load current cola to know what's already there
+    var colaResp = await fetch('/api/manipulado/cola', {
+      headers: { 'X-Session-Token': sessionToken || '' }
+    });
+    var colaData = await colaResp.json();
+    var colaItems = colaData.items || [];
+
+    // Build set of already-assigned pedido|producto|palet
+    var yaEnCola = {};
+    colaItems.forEach(function(it) {
+      var k = it.pedido + '|' + (it.producto||'') + '|' + it.palet;
+      yaEnCola[k] = true;
+    });
+
+    // 4. Assign missing palets
+    var added = 0;
+    for (var i = 0; i < pedidosHoy.length; i++) {
+      var p = pedidosHoy[i];
+      if (!p.palets || parseFloat(p.palets) === 0) continue;
+      var numPalets = Math.ceil(parseFloat(String(p.palets).replace(',','.')) || 0);
+      for (var n = 1; n <= numPalets; n++) {
+        var key = p.pedido + '|' + (p.producto||'') + '|' + n;
+        if (yaEnCola[key]) continue;
+        await fetch('/api/manipulado/asignar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Session-Token': sessionToken || '' },
+          body: JSON.stringify({
+            pedido: p.pedido,
+            producto: p.producto || '',
+            cliente: p.cliente || '',
+            bultos: p.bultos || '',
+            palet: n,
+            linea: 1,
+            lote: p.lote || ''
+          })
+        });
+        added++;
+      }
+    }
+
+    // 5. Reload cola
+    cargarManipulado(function() {
+      if (btn) { btn.innerHTML = '&#8635; Actualizar'; btn.disabled = false; }
+      mostrarToast(added > 0 ? '&#10003; ' + added + ' palet(s) añadidos a la cola' : 'Cola ya al día');
+    });
+
+  } catch(e) {
+    console.error(e);
     if (btn) { btn.innerHTML = '&#8635; Actualizar'; btn.disabled = false; }
-    mostrarToast('Palets actualizados');
-  });
+    mostrarToast('Error al cargar pedidos');
+  }
 }
 
 // ===== ESTADO COMPARTIDO =====
