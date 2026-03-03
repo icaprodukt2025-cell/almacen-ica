@@ -766,6 +766,36 @@ textarea::placeholder { color:var(--texto3); }
     <div class="date-carousel" id="date-carousel"></div>
   </div>
   <div id="palets-activos-container" style="flex-shrink:0"></div>
+
+  <!-- STATS + FILTROS BAR (desktop only) -->
+  <div id="pedidos-topbar" style="display:none;flex-shrink:0;padding:8px 14px;background:var(--panel);border-bottom:1px solid var(--borde);gap:10px;align-items:center;flex-wrap:wrap">
+    <div id="pedidos-stats-bar" style="display:flex;gap:16px;font-family:'DM Mono',monospace;font-size:0.7rem;font-weight:700;color:var(--texto2);flex-shrink:0">
+      <span>PEDIDOS: <span id="stat-ped-count" style="color:var(--texto)">—</span></span>
+      <span>PALETS: <span id="stat-ped-palets" style="color:var(--verde-vivo)">—</span></span>
+      <span>BULTOS: <span id="stat-ped-bultos" style="color:var(--texto)">—</span></span>
+    </div>
+    <div style="display:flex;gap:8px;margin-left:auto;align-items:center">
+      <div style="position:relative">
+        <span style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--texto3);font-size:0.85rem">&#128269;</span>
+        <input id="filtro-pedido-num" oninput="aplicarFiltrosPedidos()" placeholder="Nº pedido..." 
+          style="padding:6px 10px 6px 28px;border-radius:8px;border:1px solid var(--borde2);background:var(--card2);color:var(--texto);font-family:'DM Mono',monospace;font-size:0.72rem;width:120px;outline:none">
+      </div>
+      <div style="position:relative">
+        <span style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--texto3);font-size:0.85rem">&#128230;</span>
+        <input id="filtro-producto" oninput="aplicarFiltrosPedidos()" placeholder="Producto..." 
+          style="padding:6px 10px 6px 28px;border-radius:8px;border:1px solid var(--borde2);background:var(--card2);color:var(--texto);font-family:'DM Mono',monospace;font-size:0.72rem;width:160px;outline:none">
+      </div>
+      <button onclick="abrirResumenProductos()" 
+        style="padding:6px 12px;border-radius:8px;border:none;background:var(--verde-vivo);color:#fff;font-family:'Syne',sans-serif;font-weight:700;font-size:0.72rem;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap">
+        &#128202; Por producto
+      </button>
+      <button id="btn-limpiar-filtros" onclick="limpiarFiltrosPedidos()" 
+        style="display:none;padding:6px 10px;border-radius:8px;border:1px solid var(--borde2);background:var(--card2);color:var(--texto2);font-family:'Syne',sans-serif;font-weight:700;font-size:0.72rem;cursor:pointer">
+        ✕ Limpiar
+      </button>
+    </div>
+  </div>
+
   <div class="scroll-content" id="pedidos-list">
     <div class="loading-state"><div class="spinner"></div><p>Cargando pedidos...</p></div>
   </div>
@@ -1040,6 +1070,124 @@ function guardarTraza() {
     }
   };
   xhr.send(body);
+}
+
+
+// ===== FILTROS PEDIDOS (DESKTOP) =====
+var pedidosFiltradosCache = [];
+
+function mostrarTopbarPedidos() {
+  var topbar = document.getElementById('pedidos-topbar');
+  if (topbar && window.innerWidth > 480) topbar.style.display = 'flex';
+}
+
+function actualizarStatsPedidos(lista) {
+  var totalPed = lista.length;
+  var totalPal = 0, totalBul = 0;
+  lista.forEach(function(p) {
+    totalPal += parseFloat(String(p.palets||'0').replace(',','.')) || 0;
+    totalBul += parseInt(p.bultos) || 0;
+  });
+  var el = document.getElementById('stat-ped-count');
+  if (el) el.textContent = totalPed;
+  el = document.getElementById('stat-ped-palets');
+  if (el) el.textContent = Math.round(totalPal * 10) / 10;
+  el = document.getElementById('stat-ped-bultos');
+  if (el) el.textContent = totalBul.toLocaleString('es-ES');
+}
+
+function aplicarFiltrosPedidos() {
+  if (!pedidosDataCache || !fechaSeleccionada) return;
+  var numFiltro = (document.getElementById('filtro-pedido-num')||{}).value || '';
+  var prodFiltro = (document.getElementById('filtro-producto')||{}).value || '';
+  numFiltro = numFiltro.trim().toLowerCase();
+  prodFiltro = prodFiltro.trim().toLowerCase();
+
+  var lista = (pedidosDataCache[fechaSeleccionada] || []).map(function(p) {
+    return Object.assign({}, p, {fecha_salida: fechaSeleccionada});
+  });
+
+  if (numFiltro) lista = lista.filter(function(p) {
+    return String(p.pedido||'').toLowerCase().includes(numFiltro);
+  });
+  if (prodFiltro) lista = lista.filter(function(p) {
+    return String(p.producto||'').toLowerCase().includes(prodFiltro);
+  });
+
+  pedidosFiltradosCache = lista;
+  actualizarStatsPedidos(lista);
+
+  var btnLimpiar = document.getElementById('btn-limpiar-filtros');
+  if (btnLimpiar) btnLimpiar.style.display = (numFiltro || prodFiltro) ? 'block' : 'none';
+
+  renderListaPedidos(lista);
+}
+
+function limpiarFiltrosPedidos() {
+  var n = document.getElementById('filtro-pedido-num');
+  var p = document.getElementById('filtro-producto');
+  if (n) n.value = '';
+  if (p) p.value = '';
+  aplicarFiltrosPedidos();
+}
+
+function abrirResumenProductos() {
+  if (!pedidosDataCache || !fechaSeleccionada) return;
+  var lista = pedidosFiltradosCache.length > 0 ? pedidosFiltradosCache :
+    (pedidosDataCache[fechaSeleccionada] || []);
+
+  // Group by producto
+  var grupos = {};
+  lista.forEach(function(p) {
+    var key = p.producto || 'Sin producto';
+    if (!grupos[key]) grupos[key] = { pedidos: 0, palets: 0, bultos: 0 };
+    grupos[key].pedidos++;
+    grupos[key].palets += parseFloat(String(p.palets||'0').replace(',','.')) || 0;
+    grupos[key].bultos += parseInt(p.bultos) || 0;
+  });
+
+  // Sort by palets desc
+  var sorted = Object.entries(grupos).sort(function(a,b) { return b[1].palets - a[1].palets; });
+
+  var el = document.getElementById('modal-resumen-fecha');
+  if (el) el.textContent = fechaSeleccionada + ' · ' + lista.length + ' líneas';
+
+  var body = document.getElementById('modal-resumen-body');
+  if (!body) return;
+
+  var html = '<table style="width:100%;border-collapse:collapse;font-size:0.8rem">';
+  html += '<thead><tr style="border-bottom:2px solid var(--borde2)">';
+  html += '<th style="text-align:left;padding:6px 8px;color:var(--texto3);font-family:DM Mono,monospace;font-size:0.65rem;letter-spacing:0.08em;text-transform:uppercase">Producto</th>';
+  html += '<th style="text-align:right;padding:6px 8px;color:var(--texto3);font-family:DM Mono,monospace;font-size:0.65rem;letter-spacing:0.08em">Ped.</th>';
+  html += '<th style="text-align:right;padding:6px 8px;color:var(--verde-vivo);font-family:DM Mono,monospace;font-size:0.65rem;letter-spacing:0.08em">Palets</th>';
+  html += '<th style="text-align:right;padding:6px 8px;color:var(--texto3);font-family:DM Mono,monospace;font-size:0.65rem;letter-spacing:0.08em">Bultos</th>';
+  html += '</tr></thead><tbody>';
+
+  var totalPal = 0, totalBul = 0, totalPed = 0;
+  sorted.forEach(function(entry, i) {
+    var nombre = entry[0];
+    var g = entry[1];
+    totalPal += g.palets; totalBul += g.bultos; totalPed += g.pedidos;
+    var bg = i % 2 === 0 ? 'var(--card2)' : 'var(--card)';
+    html += '<tr style="background:' + bg + ';border-bottom:1px solid var(--borde)">';
+    html += '<td style="padding:8px;font-weight:600;color:var(--texto)">' + nombre + '</td>';
+    html += '<td style="padding:8px;text-align:right;color:var(--texto2);font-family:DM Mono,monospace">' + g.pedidos + '</td>';
+    html += '<td style="padding:8px;text-align:right;font-family:DM Mono,monospace;font-weight:700;color:var(--verde-vivo)">' + (Math.round(g.palets*10)/10) + '</td>';
+    html += '<td style="padding:8px;text-align:right;font-family:DM Mono,monospace;color:var(--texto2)">' + g.bultos.toLocaleString('es-ES') + '</td>';
+    html += '</tr>';
+  });
+
+  // Total row
+  html += '<tr style="border-top:2px solid var(--borde2);font-weight:800;background:var(--card)">';
+  html += '<td style="padding:8px;color:var(--texto)">TOTAL</td>';
+  html += '<td style="padding:8px;text-align:right;font-family:DM Mono,monospace;color:var(--texto)">' + totalPed + '</td>';
+  html += '<td style="padding:8px;text-align:right;font-family:DM Mono,monospace;color:var(--verde-vivo);font-size:1rem">' + (Math.round(totalPal*10)/10) + '</td>';
+  html += '<td style="padding:8px;text-align:right;font-family:DM Mono,monospace;color:var(--texto)">' + totalBul.toLocaleString('es-ES') + '</td>';
+  html += '</tr>';
+  html += '</tbody></table>';
+
+  body.innerHTML = html;
+  document.getElementById('modal-resumen-productos').classList.add('open');
 }
 
 // ===== ESTADO COMPARTIDO =====
@@ -1413,10 +1561,25 @@ async function renderPedidos() {
 }
 
 function renderPedidosFecha() {
-  const container = document.getElementById('pedidos-list');
   if (!pedidosDataCache || !fechaSeleccionada) return;
+  mostrarTopbarPedidos();
+  pedidosFiltradosCache = [];
+  // Reset filters
+  var nEl = document.getElementById('filtro-pedido-num');
+  var pEl = document.getElementById('filtro-producto');
+  if (nEl) nEl.value = '';
+  if (pEl) pEl.value = '';
+  var btnL = document.getElementById('btn-limpiar-filtros');
+  if (btnL) btnL.style.display = 'none';
 
-  const pedidosFiltrados = (pedidosDataCache[fechaSeleccionada] || []).map(p => ({ ...p, fecha_salida: fechaSeleccionada }));
+  const lista = (pedidosDataCache[fechaSeleccionada] || []).map(p => ({ ...p, fecha_salida: fechaSeleccionada }));
+  actualizarStatsPedidos(lista);
+  renderListaPedidos(lista);
+}
+
+function renderListaPedidos(pedidosFiltrados) {
+  const container = document.getElementById('pedidos-list');
+  if (!container) return;
 
   if (pedidosFiltrados.length === 0) {
     container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#128230;</div><p>Sin pedidos para esta fecha</p></div>';
@@ -3078,5 +3241,15 @@ function anularItemMan(row) {
   </div>
 </div>
 
+
+<!-- MODAL RESUMEN POR PRODUCTO -->
+<div class="modal-overlay" id="modal-resumen-productos">
+  <div class="modal-box" style="max-width:560px;max-height:80vh;overflow:hidden;display:flex;flex-direction:column">
+    <div class="modal-title">&#128202; Resumen por Producto</div>
+    <div class="modal-sub" id="modal-resumen-fecha"></div>
+    <div id="modal-resumen-body" style="overflow-y:auto;flex:1;margin-top:12px"></div>
+    <button class="modal-cancel" onclick="document.getElementById('modal-resumen-productos').classList.remove('open')">Cerrar</button>
+  </div>
+</div>
 </body>
 </html>
