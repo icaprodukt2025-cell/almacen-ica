@@ -1190,6 +1190,60 @@ function abrirResumenProductos() {
   document.getElementById('modal-resumen-productos').classList.add('open');
 }
 
+
+// ===== LOTE / DESTRIO (rol linea) =====
+function abrirModalLote() {
+  document.getElementById('lote-input-num').value = '';
+  document.getElementById('lote-input-destrio').value = '';
+  document.getElementById('modal-lote-destrio').classList.add('open');
+  setTimeout(function(){ document.getElementById('lote-input-num').focus(); }, 100);
+}
+
+async function guardarLoteDestrio() {
+  var lote = document.getElementById('lote-input-num').value.trim();
+  var destrio = document.getElementById('lote-input-destrio').value.trim();
+  if (!lote) { alert('Introduce el número de lote'); return; }
+
+  var btn = document.querySelector('#modal-lote-destrio .modal-confirm');
+  btn.textContent = 'Guardando...';
+  btn.disabled = true;
+
+  try {
+    var resp = await fetch('/api/guardar-lote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Session-Token': sessionToken || '' },
+      body: JSON.stringify({
+        lote: lote,
+        destrio: destrio || '0',
+        usuario: currentUser ? currentUser.nombre : 'Linea',
+        fecha: new Date().toLocaleDateString('es-ES')
+      })
+    });
+    var data = await resp.json();
+    if (data.ok) {
+      document.getElementById('modal-lote-destrio').classList.remove('open');
+      mostrarToast('&#127807; Lote ' + lote + ' guardado');
+    } else {
+      alert('Error: ' + (data.error || 'desconocido'));
+    }
+  } catch(e) {
+    alert('Error de conexión');
+  }
+  btn.textContent = '✓ Guardar';
+  btn.disabled = false;
+}
+
+// Adjust UI for linea role - hide back button, hide manual button
+function ajustarUILinea() {
+  if (!currentUser || currentUser.role !== 'linea') return;
+  var backBtn = document.querySelector('#screen-manipulado .back-btn');
+  if (backBtn) backBtn.style.visibility = 'hidden';
+  var manBtn = document.getElementById('btn-manual-man');
+  if (manBtn) manBtn.style.display = 'none';
+  var loteBtn = document.getElementById('btn-add-lote');
+  if (loteBtn) loteBtn.style.display = 'inline-flex';
+}
+
 // ===== ESTADO COMPARTIDO =====
 function saveEstado(pedido, tipo, valor) {
   try {
@@ -3157,7 +3211,8 @@ function anularItemMan(row) {
       <div class="back-title">&#127981; Control Manipulado</div>
       <div class="back-subtitle" id="man-fecha-sub"></div>
     </div>
-    <button onclick="abrirModalManual()" style="margin-left:auto;background:var(--azul);border:none;border-radius:8px;color:#fff;font-family:'Syne',sans-serif;font-weight:700;font-size:0.72rem;padding:7px 12px;cursor:pointer">&#43; Manual</button>
+    <button onclick="abrirModalManual()" style="margin-left:auto;background:var(--azul);border:none;border-radius:8px;color:#fff;font-family:'Syne',sans-serif;font-weight:700;font-size:0.72rem;padding:7px 12px;cursor:pointer" id="btn-manual-man">&#43; Manual</button>
+    <button id="btn-add-lote" onclick="abrirModalLote()" style="display:none;background:var(--verde-vivo);border:none;border-radius:8px;color:#fff;font-family:'Syne',sans-serif;font-weight:700;font-size:0.72rem;padding:7px 12px;cursor:pointer;align-items:center;gap:5px">&#127807; Lote</button>
   </div>
 
   <!-- LINEAS PANEL -->
@@ -3249,6 +3304,28 @@ function anularItemMan(row) {
     <div class="modal-sub" id="modal-resumen-fecha"></div>
     <div id="modal-resumen-body" style="overflow-y:auto;flex:1;margin-top:12px"></div>
     <button class="modal-cancel" onclick="document.getElementById('modal-resumen-productos').classList.remove('open')">Cerrar</button>
+  </div>
+</div>
+
+<!-- MODAL AÑADIR LOTE / DESTRIO -->
+<div class="modal-overlay" id="modal-lote-destrio">
+  <div class="modal-box" style="max-width:380px">
+    <div class="modal-title">&#127807; Añadir Lote</div>
+    <div class="modal-sub">Registrar lote y kg de destrío</div>
+    <div style="margin-top:16px;display:flex;flex-direction:column;gap:12px">
+      <div>
+        <label style="font-family:'DM Mono',monospace;font-size:0.65rem;color:var(--texto3);letter-spacing:0.08em;text-transform:uppercase;display:block;margin-bottom:5px">Lote</label>
+        <input id="lote-input-num" placeholder="Ej: 1005" style="width:100%;padding:10px 12px;border-radius:9px;border:1px solid var(--borde2);background:var(--card2);color:var(--texto);font-family:'DM Mono',monospace;font-size:0.9rem;outline:none">
+      </div>
+      <div>
+        <label style="font-family:'DM Mono',monospace;font-size:0.65rem;color:var(--texto3);letter-spacing:0.08em;text-transform:uppercase;display:block;margin-bottom:5px">Kg Destrío</label>
+        <input id="lote-input-destrio" type="number" step="0.1" placeholder="Ej: 12.5" style="width:100%;padding:10px 12px;border-radius:9px;border:1px solid var(--borde2);background:var(--card2);color:var(--texto);font-family:'DM Mono',monospace;font-size:0.9rem;outline:none">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:18px">
+      <button class="modal-cancel" onclick="document.getElementById('modal-lote-destrio').classList.remove('open')">Cancelar</button>
+      <button class="modal-confirm" onclick="guardarLoteDestrio()">&#10003; Guardar</button>
+    </div>
   </div>
 </div>
 </body>
