@@ -949,9 +949,18 @@ function onLoginSuccess() {
   // Update header user display
   var userEl = document.getElementById('header-user');
   if (userEl) userEl.textContent = currentUser.nombre;
-  // Go to home
+
   document.getElementById('screen-login').classList.remove('active');
-  document.getElementById('screen-home').classList.add('active');
+
+  if (currentUser.role === 'linea') {
+    // Acceso exclusivo a Control Manipulado
+    var btnLote = document.getElementById('btn-add-lote');
+    if (btnLote) btnLote.style.display = 'inline-flex';
+    goTo('manipulado');
+    setTimeout(ajustarUILinea, 150);
+  } else {
+    document.getElementById('screen-home').classList.add('active');
+  }
   sincronizar();
 }
 
