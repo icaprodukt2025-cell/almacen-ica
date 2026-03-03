@@ -1348,8 +1348,9 @@ function renderPedidosFecha() {
       let detailHTML = '';
       if (p.lote) detailHTML += '<div class="detail-row"><span class="detail-label" style="color:var(--verde-vivo)">&#127807; Lote</span><span class="detail-value" style="font-family:DM Mono,monospace;color:var(--verde-vivo);font-weight:700">' + p.lote + '</span></div>';
       if (p.envase) detailHTML += '<div class="detail-row"><span class="detail-label" style="color:var(--azul)">&#128230; Envase</span><span class="detail-value" style="font-weight:700;color:var(--azul)">' + p.envase + '</span></div>';
-      if (p.matricula) detailHTML += '<div class="detail-row"><span class="detail-label">Matrícula</span><span class="detail-value">' + p.matricula + '</span></div>';
-      if (p.transportista) detailHTML += '<div class="detail-row"><span class="detail-label">Transportista</span><span class="detail-value">' + p.transportista + '</span></div>';
+      if (p.matricula) detailHTML += '<div class="detail-row"><span class="detail-label">&#128663; Matrícula</span><span class="detail-value" style="font-family:DM Mono,monospace;font-weight:700;letter-spacing:0.05em">' + p.matricula + '</span></div>';
+      if (p.transportista) detailHTML += '<div class="detail-row"><span class="detail-label">&#128666; Transportista</span><span class="detail-value" style="font-weight:600">' + p.transportista + '</span></div>';
+      if (p.telefono) detailHTML += '<div class="detail-row"><span class="detail-label">&#128222; Teléfono</span><span class="detail-value"><a href="tel:' + p.telefono + '" style="color:var(--verde-vivo);text-decoration:none">' + p.telefono + '</a></span></div>';
       if (p.cliente) detailHTML += '<div class="detail-row"><span class="detail-label">Cliente</span><span class="detail-value">' + p.cliente + '</span></div>';
       if (p.destino) detailHTML += '<div class="detail-row"><span class="detail-label">Destino</span><span class="detail-value">' + p.destino + '</span></div>';
       detail.innerHTML = detailHTML;
