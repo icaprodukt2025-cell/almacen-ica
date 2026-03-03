@@ -1374,22 +1374,16 @@ async function recargarPalets() {
     var data = await resp.json();
     var dias = data.dias || {};
 
-    // 2. Get today's pedidos
-    var hoy = new Date().toLocaleDateString('es-ES', {
-      day: '2-digit', month: '2-digit', year: 'numeric'
-    });
-    var pedidosHoy = dias[hoy] || [];
+    // 2. Init date carousel with all dates
+    initManDateCarousel(dias);
 
-    // Also check pedidosDataCache for selected date
-    if (pedidosDataCache && fechaSeleccionada) {
-      var pedidosFecha = pedidosDataCache[fechaSeleccionada] || [];
-      pedidosHoy = pedidosHoy.concat(pedidosFecha.filter(function(p) {
-        return !pedidosHoy.find(function(x){ return x.pedido === p.pedido && x.producto === p.producto; });
-      }));
-    }
+    // 3. Get pedidos for selected date (or today)
+    var hoy = getFechaHoy();
+    var fechaTarget = manFechaSeleccionada || hoy;
+    var pedidosHoy = dias[fechaTarget] || [];
 
     if (pedidosHoy.length === 0) {
-      mostrarToast('Sin pedidos para añadir hoy');
+      mostrarToast('Sin pedidos para ' + fechaTarget);
       if (btn) { btn.innerHTML = '&#8635; Actualizar'; btn.disabled = false; }
       return;
     }
@@ -1445,6 +1439,65 @@ async function recargarPalets() {
     if (btn) { btn.innerHTML = '&#8635; Actualizar'; btn.disabled = false; }
     mostrarToast('Error al cargar pedidos');
   }
+}
+
+
+// ===== DATE CAROUSEL - MANIPULADO =====
+var manFechaSeleccionada = null;
+var manDiasData = {};
+
+function initManDateCarousel(diasData) {
+  manDiasData = diasData;
+  var wrap = document.getElementById('man-date-wrap');
+  if (wrap) wrap.style.display = 'block';
+
+  var hoy = getFechaHoy();
+  var fechas = Object.keys(diasData).sort(function(a, b) {
+    var pa = a.split('/'), pb = b.split('/');
+    return new Date(pa[2], pa[1]-1, pa[0]) - new Date(pb[2], pb[1]-1, pb[0]);
+  });
+
+  if (!manFechaSeleccionada) {
+    manFechaSeleccionada = fechas.find(function(f) {
+      var p = f.split('/');
+      return new Date(p[2], p[1]-1, p[0]) >= new Date();
+    }) || fechas[fechas.length-1] || hoy;
+  }
+
+  var carousel = document.getElementById('man-date-carousel');
+  if (!carousel) return;
+  carousel.innerHTML = '';
+
+  var DIAS  = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  var MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+  fechas.forEach(function(fecha) {
+    var p = fecha.split('/');
+    var d = new Date(p[2], p[1]-1, p[0]);
+    var esHoy = fecha === hoy;
+    var count = (diasData[fecha] || []).length;
+
+    var chip = document.createElement('div');
+    chip.className = 'date-chip' + (esHoy ? ' hoy' : '') + (fecha === manFechaSeleccionada ? ' active' : '');
+    chip.innerHTML =
+      '<span class="chip-dia">' + DIAS[d.getDay()] + '</span>' +
+      '<span class="chip-num">' + p[0] + '</span>' +
+      '<span class="chip-mes">' + MESES[d.getMonth()] + '</span>' +
+      (count > 0 ? '<span class="chip-count">' + count + ' ped</span>' : '');
+
+    chip.addEventListener('click', function() {
+      manFechaSeleccionada = fecha;
+      document.querySelectorAll('#man-date-carousel .date-chip').forEach(function(c){ c.classList.remove('active'); });
+      chip.classList.add('active');
+    });
+    carousel.appendChild(chip);
+  });
+
+  // Scroll to active
+  setTimeout(function() {
+    var active = carousel.querySelector('.date-chip.active');
+    if (active) active.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }, 100);
 }
 
 // ===== ESTADO COMPARTIDO =====
@@ -3415,6 +3468,11 @@ function anularItemMan(row) {
     </div>
     <button onclick="abrirModalManual()" style="margin-left:auto;background:var(--azul);border:none;border-radius:8px;color:#fff;font-family:'Syne',sans-serif;font-weight:700;font-size:0.72rem;padding:7px 12px;cursor:pointer" id="btn-manual-man">&#43; Manual</button>
     <button id="btn-add-lote" onclick="abrirModalLote()" style="display:none;background:var(--verde-vivo);border:none;border-radius:8px;color:#fff;font-family:'Syne',sans-serif;font-weight:700;font-size:0.72rem;padding:7px 12px;cursor:pointer;align-items:center;gap:5px">&#127807; Lote</button>
+  </div>
+
+  <!-- DATE CAROUSEL MANIPULADO -->
+  <div class="date-carousel-wrap" id="man-date-wrap" style="display:none">
+    <div class="date-carousel" id="man-date-carousel"></div>
   </div>
 
   <!-- LINEA CONFECCION PANEL -->
