@@ -1361,6 +1361,16 @@ function autoAsignarPalets(pedidos) {
   });
 }
 
+
+function recargarPalets() {
+  var btn = document.getElementById('btn-recargar-palets');
+  if (btn) { btn.textContent = '⏳ Cargando...'; btn.disabled = true; }
+  cargarManipulado(function() {
+    if (btn) { btn.innerHTML = '&#8635; Actualizar'; btn.disabled = false; }
+    mostrarToast('Palets actualizados');
+  });
+}
+
 // ===== ESTADO COMPARTIDO =====
 function saveEstado(pedido, tipo, valor) {
   try {
@@ -2911,7 +2921,7 @@ function goToManipulado() {
   cargarManipulado();
 }
 
-function cargarManipulado() {
+function cargarManipulado(cb) {
   var xhr = new XMLHttpRequest();
   xhr.open('GET', '/api/manipulado/cola', true);
   xhr.setRequestHeader('X-Session-Token', sessionToken);
@@ -2932,6 +2942,7 @@ function cargarManipulado() {
           });
           renderLineasPanel();
           renderManLista();
+          if (cb) cb();
         }
       } catch(e) {}
     }
@@ -3336,7 +3347,10 @@ function anularItemMan(row) {
       <span style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.8rem;color:var(--verde-vivo)">&#127981; LÍNEA DE CONFECCIÓN</span>
       <span id="man-linea-estado" style="font-family:'DM Mono',monospace;font-size:0.65rem;color:var(--texto3)">activa</span>
     </div>
-    <div id="man-resumen-bar" style="font-family:'DM Mono',monospace;font-size:0.65rem;color:var(--texto3);margin-left:auto;text-align:right"></div>
+    <div id="man-resumen-bar" style="font-family:'DM Mono',monospace;font-size:0.65rem;color:var(--texto3);flex:1;text-align:center"></div>
+    <button onclick="recargarPalets()" id="btn-recargar-palets" style="padding:7px 14px;border-radius:8px;border:1px solid var(--borde2);background:var(--card2);color:var(--texto2);font-family:'Syne',sans-serif;font-weight:700;font-size:0.72rem;cursor:pointer;display:flex;align-items:center;gap:5px;flex-shrink:0">
+      &#8635; Actualizar
+    </button>
   </div>
 
   <!-- TABS -->
