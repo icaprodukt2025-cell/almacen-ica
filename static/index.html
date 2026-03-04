@@ -1503,6 +1503,7 @@ function initManDateCarousel(diasData) {
       manFechaSeleccionada = fecha;
       document.querySelectorAll('#man-date-carousel .date-chip').forEach(function(c){ c.classList.remove('active'); });
       chip.classList.add('active');
+      cargarManipulado();
     });
     carousel.appendChild(chip);
   });
@@ -1538,6 +1539,45 @@ function contarNuevos(lista) {
   return lista.filter(function(p) {
     return esPedidoNuevo(p.pedido + '|' + (p.producto||'') + '|' + (p.fecha_salida||''));
   }).length;
+}
+
+
+// ===== CRONOMETRO MANIPULADO =====
+var cronoInterval = null;
+
+function iniciarCronometros() {
+  if (cronoInterval) clearInterval(cronoInterval);
+  cronoInterval = setInterval(tickCronometros, 1000);
+  tickCronometros();
+}
+
+function tickCronometros() {
+  var now = new Date();
+  manData.forEach(function(it) {
+    if (it.estado !== 'en_curso' || !it.inicio) return;
+    var el = document.getElementById('crono-' + it.row);
+    if (!el) return;
+    var partes = it.inicio.split(':');
+    if (partes.length < 2) return;
+    var ini = new Date();
+    ini.setHours(parseInt(partes[0]), parseInt(partes[1]), 0, 0);
+    var diff = Math.max(0, Math.floor((now - ini) / 1000));
+    var h = Math.floor(diff / 3600);
+    var m = Math.floor((diff % 3600) / 60);
+    var s = diff % 60;
+    var txt = h > 0
+      ? h + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0')
+      : String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+    el.textContent = txt;
+    // Color warning after 2h
+    if (diff > 7200) el.style.color = 'var(--rojo)';
+    else if (diff > 3600) el.style.color = 'var(--amarillo)';
+    else el.style.color = 'var(--verde-vivo)';
+  });
+}
+
+function pararCronometros() {
+  if (cronoInterval) { clearInterval(cronoInterval); cronoInterval = null; }
 }
 
 // ===== ESTADO COMPARTIDO =====
@@ -1665,7 +1705,7 @@ function goTo(screen) {
     });
   }
   if (screen === 'informes') { setTimeout(cargarInformes, 100); }
-  if (screen === 'manipulado') { goToManipulado(); }
+  if (screen === 'manipulado') { goToManipulado(); } else { pararCronometros(); }
   if (screen === 'cargas') { loadEstado(function() { renderCargas(); }); }
   if (screen === 'planificacion') cargarPlanificacion();
 }
@@ -3111,6 +3151,15 @@ var pedidoAsignarActual = null;
 
 function goToManipulado() {
   document.getElementById('man-fecha-sub').textContent = new Date().toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
+  // Init carousel from pedidos cache or fetch
+  if (pedidosDataCache && Object.keys(pedidosDataCache).length > 0) {
+    initManDateCarousel(pedidosDataCache);
+  } else {
+    fetch('/api/planificacion', { headers: { 'X-Session-Token': sessionToken || '' } })
+      .then(function(r){ return r.json(); })
+      .then(function(data){ if (data.dias) initManDateCarousel(data.dias); })
+      .catch(function(){});
+  }
   cargarManipulado();
 }
 
@@ -3240,6 +3289,8 @@ function renderManLista() {
     html += '<div style="display:flex;gap:8px;flex-wrap:wrap;font-family:DM Mono,monospace;font-size:0.62rem;color:var(--texto3);margin-bottom:10px">';
     if (it.bultos) html += '<span style="background:var(--card2);padding:2px 7px;border-radius:5px">' + it.bultos + ' bul</span>';
     if (it.inicio) html += '<span style="background:var(--azul-dim);color:var(--azul);padding:2px 7px;border-radius:5px">&#9654; ' + it.inicio + '</span>';
+    if (it.personas && it.estado === 'en_curso') html += '<span style="background:var(--card2);padding:2px 7px;border-radius:5px">&#128100; ' + it.personas + ' pers</span>';
+    if (it.observaciones) html += '<span style="background:var(--amarillo-dim);color:var(--amarillo);padding:2px 7px;border-radius:5px">' + it.observaciones + '</span>';
     if (it.fin)    html += '<span style="background:var(--verde-dim);color:var(--verde-vivo);padding:2px 7px;border-radius:5px">&#10003; ' + it.fin + '</span>';
     if (it.minutos) html += '<span style="background:var(--card2);padding:2px 7px;border-radius:5px">' + it.minutos + ' min</span>';
     html += '</div>';
@@ -3249,6 +3300,7 @@ function renderManLista() {
       html += '<button onclick="iniciarItemMan(' + it.row + ')" style="flex:1;padding:10px;background:var(--azul);border:none;border-radius:9px;color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.8rem;cursor:pointer">&#9654; Iniciar</button>';
       html += '<button onclick="anularItemMan(' + it.row + ')" style="padding:10px 14px;background:transparent;border:1px solid #e53935;border-radius:9px;color:#e53935;font-weight:700;font-size:0.8rem;cursor:pointer">&#10005;</button>';
     } else if (it.estado === 'en_curso') {
+      html += '<div id="crono-' + it.row + '" style="font-family:DM Mono,monospace;font-size:1.1rem;font-weight:800;color:var(--verde-vivo);background:var(--verde-dim);border-radius:8px;padding:6px 14px;min-width:70px;text-align:center">--:--</div>';
       html += '<button onclick="finalizarItemMan(' + it.row + ',\'' + (it.inicio||'') + '\',\'' + (it.lote||'') + '\')" style="flex:1;padding:10px;background:var(--verde-vivo);border:none;border-radius:9px;color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.8rem;cursor:pointer">&#10003; Finalizar</button>';
     } else if (it.estado === 'finalizado') {
       html += '<span style="font-size:0.75rem;color:var(--verde-vivo);font-weight:700">&#10003; Confeccionado ' + (it.fin||'') + '</span>';
@@ -3257,6 +3309,7 @@ function renderManLista() {
     html += '</div></div>';
   });
   container.innerHTML = html;
+  iniciarCronometros();
 }
 
 // ---- ASIGNAR DESDE PEDIDOS ----
@@ -3372,14 +3425,23 @@ function guardarManual() {
 }
 
 // ---- INICIAR / FINALIZAR / ANULAR ----
+var manPersonasIniVal = 10;
+function ajManPersonasIni(d) {
+  manPersonasIniVal = Math.max(1, manPersonasIniVal + d);
+  document.getElementById('man-ini-personas-val').textContent = manPersonasIniVal;
+}
+
 function iniciarItemMan(row) {
   manItemActivo = row;
   var item = manData.find(function(it){ return it.row === row; });
   if (!item) return;
+  manPersonasIniVal = 10;
+  document.getElementById('man-ini-personas-val').textContent = 10;
   document.getElementById('man-ini-title').textContent = 'Iniciar Palet';
   document.getElementById('man-ini-sub').textContent = (item.producto || '') + (item.pedido ? ' · #' + item.pedido : '');
   document.getElementById('man-ini-palet').value = item.palet || '';
   document.getElementById('man-ini-lote').value = item.lote || '';
+  document.getElementById('man-ini-obs').value = '';
   document.getElementById('modal-man-iniciar').classList.add('open');
   setTimeout(function(){ document.getElementById('man-ini-palet').focus(); }, 100);
 }
@@ -3392,10 +3454,11 @@ function ajManPersonas(d) {
 function confirmarInicioMan() {
   var paletVal = document.getElementById('man-ini-palet').value.trim();
   var loteVal  = document.getElementById('man-ini-lote').value.trim();
+  var obsVal   = document.getElementById('man-ini-obs').value.trim();
   if (!paletVal) { alert('Introduce el número de palet'); return; }
   var now = new Date();
   var inicio = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
-  var body = JSON.stringify({ row: manItemActivo, estado: 'en_curso', inicio: inicio, palet: paletVal, lote: loteVal, personas: 1 });
+  var body = JSON.stringify({ row: manItemActivo, estado: 'en_curso', inicio: inicio, palet: paletVal, lote: loteVal, personas: manPersonasIniVal, observaciones: obsVal });
   var xhr = new XMLHttpRequest();
   xhr.open('POST', '/api/manipulado/estado', true);
   xhr.setRequestHeader('Content-Type', 'application/json');
@@ -3535,7 +3598,7 @@ function anularItemMan(row) {
   </div>
 
   <!-- DATE CAROUSEL MANIPULADO -->
-  <div class="date-carousel-wrap" id="man-date-wrap" style="display:none">
+  <div class="date-carousel-wrap" id="man-date-wrap">
     <div class="date-carousel" id="man-date-carousel"></div>
   </div>
 
@@ -3608,13 +3671,27 @@ function anularItemMan(row) {
     <div class="modal-title" id="man-ini-title">&#9654; Iniciar Palet</div>
     <div class="modal-sub" id="man-ini-sub"></div>
     <div style="display:flex;flex-direction:column;gap:12px;margin-top:16px">
-      <div>
-        <label class="modal-label">Nº Palet</label>
-        <input class="modal-input" type="number" id="man-ini-palet" placeholder="Ej: 1" inputmode="numeric" style="font-size:1.1rem;font-weight:700">
+      <div style="display:flex;gap:10px">
+        <div style="flex:1">
+          <label class="modal-label">Nº Palet</label>
+          <input class="modal-input" type="number" id="man-ini-palet" placeholder="Ej: 1" inputmode="numeric" style="font-size:1.1rem;font-weight:700">
+        </div>
+        <div style="flex:1">
+          <label class="modal-label">Lote</label>
+          <input class="modal-input" type="text" id="man-ini-lote" placeholder="Ej: 1005" inputmode="numeric">
+        </div>
       </div>
       <div>
-        <label class="modal-label">Lote</label>
-        <input class="modal-input" type="text" id="man-ini-lote" placeholder="Ej: 1005" inputmode="numeric">
+        <label class="modal-label">Personas en línea</label>
+        <div style="display:flex;align-items:center;gap:10px">
+          <button onclick="ajManPersonasIni(-1)" style="background:var(--card2);border:1px solid var(--borde2);color:var(--texto);border-radius:7px;padding:6px 14px;cursor:pointer;font-size:1.1rem;font-weight:700">−</button>
+          <span id="man-ini-personas-val" style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.3rem;color:var(--verde-vivo);min-width:30px;text-align:center">10</span>
+          <button onclick="ajManPersonasIni(1)" style="background:var(--card2);border:1px solid var(--borde2);color:var(--texto);border-radius:7px;padding:6px 14px;cursor:pointer;font-size:1.1rem;font-weight:700">+</button>
+        </div>
+      </div>
+      <div>
+        <label class="modal-label">Observaciones <span style="color:var(--texto3)">(opcional)</span></label>
+        <input class="modal-input" type="text" id="man-ini-obs" placeholder="Notas...">
       </div>
     </div>
     <div style="display:flex;gap:8px;margin-top:18px">
