@@ -1505,12 +1505,12 @@ function initManDateCarousel(diasData) {
       manFechaSeleccionada = fecha;
       document.querySelectorAll('#man-date-carousel .date-chip').forEach(function(c){ c.classList.remove('active'); });
       chip.classList.add('active');
-      // Load cola and auto-create palets if empty for this date
-      cargarManipulado(function() {
-        if (manData.length === 0 && manDiasData[fecha] && manDiasData[fecha].length > 0) {
-          autoCrearPaletsFecha(fecha, manDiasData[fecha]);
-        }
-      });
+      // Filter in memory first (instant, like Pedidos)
+      renderManFecha();
+      // If no palets for this date, auto-create from pedidos
+      if (manData.length === 0 && manDiasData[fecha] && manDiasData[fecha].length > 0) {
+        autoCrearPaletsFecha(fecha, manDiasData[fecha]);
+      }
     });
     carousel.appendChild(chip);
   });
@@ -3210,6 +3210,8 @@ function goToManipulado() {
   cargarManipulado();
 }
 
+var manAllItems = []; // cache completo del servidor
+
 function cargarManipulado(cb) {
   var xhr = new XMLHttpRequest();
   xhr.open('GET', '/api/manipulado/cola', true);
@@ -3219,32 +3221,36 @@ function cargarManipulado(cb) {
       try {
         var data = JSON.parse(xhr.responseText);
         if (data.ok) {
-          // Filter by selected date
-          var fechaFiltro = manFechaSeleccionada || getFechaHoy();
-          console.log('[MANIPULADO] fechaFiltro:', fechaFiltro, '| manFechaSeleccionada:', manFechaSeleccionada);
-          console.log('[MANIPULADO] items fechas:', data.items.map(function(x){ return x.pedido + ':' + x.fecha; }));
-          manData = data.items.filter(function(it) {
-            if (!it.fecha) return true;
-            return it.fecha === fechaFiltro;
-          });
-          console.log('[MANIPULADO] filtrados:', manData.length, 'de', data.items.length);
-          // Track which pedidos are already assigned (all items, not just filtered)
+          // Store ALL items in cache
+          manAllItems = data.items;
+          // Track pedidos asignados from ALL items
           pedidosAsignados = {};
-          data.items.forEach(function(it) {
+          manAllItems.forEach(function(it) {
             if (it.pedido && it.estado !== 'anulado' && it.estado !== 'finalizado') {
               var k = it.pedido + '|' + (it.producto || '');
               if (!pedidosAsignados[k]) pedidosAsignados[k] = [];
               pedidosAsignados[k].push(it.palet);
             }
           });
-          renderLineasPanel();
-          renderManLista();
+          // Filter and render for selected date
+          renderManFecha();
           if (cb) cb();
         }
-      } catch(e) {}
+      } catch(e) { console.log('cargarManipulado error:', e); }
     }
   };
   xhr.send();
+}
+
+function renderManFecha() {
+  // Filter manAllItems by selected date -> manData
+  var fechaFiltro = manFechaSeleccionada || getFechaHoy();
+  manData = manAllItems.filter(function(it) {
+    if (!it.fecha) return true;
+    return it.fecha === fechaFiltro;
+  });
+  renderLineasPanel();
+  renderManLista();
 }
 
 function renderLineasPanel() {
