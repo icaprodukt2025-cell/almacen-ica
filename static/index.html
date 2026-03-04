@@ -1368,7 +1368,8 @@ function autoAsignarPalets(pedidos) {
           bultos: p.bultos||'',
           palet: i,
           linea: 1,
-          lote: p.lote||''
+          lote: p.lote||'',
+          fecha_salida: p.fecha_salida||hoy
         })
       });
     }
@@ -1435,7 +1436,8 @@ async function recargarPalets() {
             bultos: p.bultos || '',
             palet: n,
             linea: 1,
-            lote: p.lote || ''
+            lote: p.lote || '',
+            fecha_salida: p.fecha_salida || fechaTarget
           })
         });
         added++;
