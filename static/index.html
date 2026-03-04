@@ -1505,7 +1505,12 @@ function initManDateCarousel(diasData) {
       manFechaSeleccionada = fecha;
       document.querySelectorAll('#man-date-carousel .date-chip').forEach(function(c){ c.classList.remove('active'); });
       chip.classList.add('active');
-      cargarManipulado();
+      // Load cola and auto-create palets if empty for this date
+      cargarManipulado(function() {
+        if (manData.length === 0 && manDiasData[fecha] && manDiasData[fecha].length > 0) {
+          autoCrearPaletsFecha(fecha, manDiasData[fecha]);
+        }
+      });
     });
     carousel.appendChild(chip);
   });
@@ -1580,6 +1585,46 @@ function tickCronometros() {
 
 function pararCronometros() {
   if (cronoInterval) { clearInterval(cronoInterval); cronoInterval = null; }
+}
+
+
+// Auto-crear palets para una fecha si la cola está vacía
+async function autoCrearPaletsFecha(fecha, pedidos) {
+  if (!pedidos || pedidos.length === 0) return;
+
+  var btn = document.getElementById('btn-recargar-palets');
+  if (btn) { btn.innerHTML = '&#9203; Creando...'; btn.disabled = true; }
+
+  var added = 0;
+  for (var i = 0; i < pedidos.length; i++) {
+    var p = pedidos[i];
+    if (!p.palets || parseFloat(p.palets) === 0) continue;
+    var numPalets = Math.ceil(parseFloat(String(p.palets).replace(',','.')) || 0);
+    for (var n = 1; n <= numPalets; n++) {
+      try {
+        await fetch('/api/manipulado/asignar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Session-Token': sessionToken || '' },
+          body: JSON.stringify({
+            pedido: p.pedido,
+            producto: p.producto || '',
+            cliente: p.cliente || '',
+            bultos: p.bultos || '',
+            palet: n,
+            linea: 1,
+            lote: p.lote || '',
+            fecha_salida: fecha
+          })
+        });
+        added++;
+      } catch(e) {}
+    }
+  }
+
+  cargarManipulado(function() {
+    if (btn) { btn.innerHTML = '&#8635; Actualizar'; btn.disabled = false; }
+    if (added > 0) mostrarToast('&#10003; ' + added + ' palet(s) creados para ' + fecha);
+  });
 }
 
 // ===== ESTADO COMPARTIDO =====
