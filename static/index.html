@@ -3174,8 +3174,16 @@ function cargarManipulado(cb) {
       try {
         var data = JSON.parse(xhr.responseText);
         if (data.ok) {
-          manData = data.items;
-          // Track which pedidos are already assigned
+          // Filter by selected date
+          var fechaFiltro = manFechaSeleccionada || getFechaHoy();
+          console.log('[MANIPULADO] fechaFiltro:', fechaFiltro, '| manFechaSeleccionada:', manFechaSeleccionada);
+          console.log('[MANIPULADO] items fechas:', data.items.map(function(x){ return x.pedido + ':' + x.fecha; }));
+          manData = data.items.filter(function(it) {
+            if (!it.fecha) return true;
+            return it.fecha === fechaFiltro;
+          });
+          console.log('[MANIPULADO] filtrados:', manData.length, 'de', data.items.length);
+          // Track which pedidos are already assigned (all items, not just filtered)
           pedidosAsignados = {};
           data.items.forEach(function(it) {
             if (it.pedido && it.estado !== 'anulado' && it.estado !== 'finalizado') {
