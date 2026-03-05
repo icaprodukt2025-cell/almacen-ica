@@ -733,14 +733,7 @@ textarea::placeholder { color:var(--texto3); }
           </div>
           <span class="menu-arrow">&#8250;</span>
         </button>
-        <button class="menu-btn chat-btn" onclick="goTo('chat')">
-          <span class="menu-icon">&#129302;</span>
-          <div class="menu-info">
-            <div class="menu-title">Asistente IA</div>
-            <div class="menu-desc">Consulta cualquier pedido con lenguaje natural</div>
-          </div>
-          <span class="menu-arrow">&#8250;</span>
-        </button>
+
         <button class="menu-item" onclick="goTo('manipulado')">
           <span class="menu-icon">&#127981;</span>
           <div class="menu-info">
@@ -841,22 +834,39 @@ textarea::placeholder { color:var(--texto3); }
     <button class="back-btn" onclick="goTo('home')">&#8249;</button>
     <div>
       <div class="back-title">&#128197; Planificacion</div>
-      <div class="back-subtitle">Personal - Horarios - Kg por articulo</div>
+      <div class="back-subtitle" id="plan-fecha-sub">Cargando...</div>
     </div>
-    <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
-      <div style="display:flex;flex-direction:column;align-items:center;background:var(--card);border:1px solid var(--borde2);border-radius:8px;padding:4px 10px">
-        <span style="font-family:'DM Mono',monospace;font-size:0.5rem;color:var(--texto3);letter-spacing:0.1em;text-transform:uppercase">Inicio jornada</span>
-        <div style="display:flex;align-items:center;gap:6px;margin-top:2px">
-          <button onclick="cambiarHoraInicio(-1)" style="background:var(--card2);border:1px solid var(--borde2);color:var(--texto2);font-size:1rem;cursor:pointer;padding:0 6px;border-radius:4px;line-height:1.4">-</button>
-          <span id="horaInicioDisplay" style="font-family:Syne,sans-serif;font-weight:800;font-size:1.1rem;color:var(--verde-vivo);min-width:40px;text-align:center">9:00</span>
-          <button onclick="cambiarHoraInicio(1)" style="background:var(--card2);border:1px solid var(--borde2);color:var(--texto2);font-size:1rem;cursor:pointer;padding:0 6px;border-radius:4px;line-height:1.4">+</button>
-        </div>
-      </div>
-      <button class="sync-btn" onclick="cargarPlanificacion()">&#8634;</button>
-    </div>
+    <button class="sync-btn" onclick="cargarPlanificacionDiaria()" style="margin-left:auto">&#8634;</button>
   </div>
-  <div class="scroll-content" id="plan-list" style="overflow-y:auto;flex:1;min-height:0">
-    <div class="loading-state"><div class="spinner"></div><p>Calculando planificacion...</p></div>
+
+  <!-- CONTROLES -->
+  <div style="display:flex;gap:8px;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--borde);flex-wrap:wrap;align-items:center">
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <label style="font-family:DM Mono,monospace;font-size:0.58rem;color:var(--texto3)">FECHA</label>
+      <input type="date" id="plan-fecha-input" onchange="cargarPlanificacionDiaria()"
+        style="padding:6px 10px;border-radius:8px;border:1px solid var(--borde2);background:var(--card);color:var(--texto);font-family:DM Mono,monospace;font-size:0.78rem">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <label style="font-family:DM Mono,monospace;font-size:0.58rem;color:var(--texto3)">INICIO JORNADA</label>
+      <div style="display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--borde2);border-radius:8px;padding:4px 8px">
+        <button onclick="ajustarHoraplan(-30)" style="background:none;border:none;color:var(--texto2);cursor:pointer;font-size:1rem;padding:0 4px">−</button>
+        <span id="plan-hora-display" style="font-family:Syne,sans-serif;font-weight:800;font-size:0.95rem;color:var(--verde-vivo);min-width:38px;text-align:center">7:00</span>
+        <button onclick="ajustarHoraplan(30)" style="background:none;border:none;color:var(--texto2);cursor:pointer;font-size:1rem;padding:0 4px">+</button>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <label style="font-family:DM Mono,monospace;font-size:0.58rem;color:var(--texto3)">MERMA %</label>
+      <div style="display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--borde2);border-radius:8px;padding:4px 8px">
+        <button onclick="ajustarMerma(-1)" style="background:none;border:none;color:var(--texto2);cursor:pointer;font-size:1rem;padding:0 4px">−</button>
+        <span id="plan-merma-display" style="font-family:Syne,sans-serif;font-weight:800;font-size:0.95rem;color:var(--amarillo);min-width:30px;text-align:center">12%</span>
+        <button onclick="ajustarMerma(1)" style="background:none;border:none;color:var(--texto2);cursor:pointer;font-size:1rem;padding:0 4px">+</button>
+      </div>
+    </div>
+    <button onclick="imprimirPlanificacion()" style="margin-left:auto;padding:8px 14px;background:var(--verde-vivo);border:none;border-radius:8px;color:#fff;font-family:Syne,sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer">🖨️ Imprimir</button>
+  </div>
+
+  <div class="scroll-content" id="plan-list" style="padding:14px;gap:12px;display:flex;flex-direction:column">
+    <div class="loading-state"><div class="spinner"></div><p>Cargando planificacion...</p></div>
   </div>
 </div>
 
@@ -1987,7 +1997,7 @@ function goTo(screen) {
   if (screen === 'manipulado') { goToManipulado(); } else { pararCronometros(); }
   if (screen === 'dashboard') { cargarDashboard(); }
   if (screen === 'cargas') { loadEstado(function() { renderCargas(); }); }
-  if (screen === 'planificacion') cargarPlanificacion();
+  if (screen === 'planificacion') initPlanificacion();
 }
 
 // ===== SINCRONIZACION =====
@@ -2586,141 +2596,159 @@ async function renderCargas() {
     container.innerHTML = '<div class="empty-state"><p>Error: ' + e.message + '</p></div>';
   }
 }
-async function cargarPlanificacion() {
-  const container = document.getElementById('plan-list');
-  container.innerHTML = '<div class="loading-state"><div class="spinner"></div><p>Calculando...</p></div>';
+async 
+// ===== PLANIFICACION DIARIA =====
+var planHoraMinutos = 7 * 60; // 7:00
+var planMerma = 12;
 
-  try {
-    const res = await fetch('/api/planificacion');
-    const data = await res.json();
-    if (data.error) { container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">??</div><p>' + data.error + '</p></div>'; return; }
+function ajustarHoraplan(delta) {
+  planHoraMinutos = Math.max(0, Math.min(23*60, planHoraMinutos + delta));
+  var h = Math.floor(planHoraMinutos / 60);
+  var m = planHoraMinutos % 60;
+  document.getElementById('plan-hora-display').textContent = h + ':' + String(m).padStart(2,'0');
+  cargarPlanificacionDiaria();
+}
 
-    const hoy = new Date(); hoy.setHours(0,0,0,0);
-    const ayer = new Date(hoy); ayer.setDate(hoy.getDate()-1);
-    const diasSem = ['Dom','Lun','Mar','Mie','Jue','Vie','Sab'];
+function ajustarMerma(delta) {
+  planMerma = Math.max(0, Math.min(50, planMerma + delta));
+  document.getElementById('plan-merma-display').textContent = planMerma + '%';
+  cargarPlanificacionDiaria();
+}
 
-    // Filtrar y ordenar fechas desde ayer
-    const fechas = Object.keys(data.dias || {}).filter(f => {
-      const p = f.split('/');
-      if (p.length !== 3) return false;
-      const d = new Date(parseInt(p[2]), parseInt(p[1])-1, parseInt(p[0]));
-      return d >= ayer;
-    }).sort((a,b) => {
-      const pa=a.split('/'), pb=b.split('/');
-      return new Date(pa[2],pa[1]-1,pa[0]) - new Date(pb[2],pb[1]-1,pb[0]);
-    });
+function initPlanificacion() {
+  // Set tomorrow as default
+  var manana = new Date();
+  manana.setDate(manana.getDate() + 1);
+  var dd = String(manana.getDate()).padStart(2,'0');
+  var mm = String(manana.getMonth()+1).padStart(2,'0');
+  var yyyy = manana.getFullYear();
+  document.getElementById('plan-fecha-input').value = yyyy + '-' + mm + '-' + dd;
+  cargarPlanificacionDiaria();
+}
 
-    if (fechas.length === 0) {
-      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">?</div><p>No hay planificacion disponible</p></div>';
-      return;
-    }
+function cargarPlanificacionDiaria() {
+  var inputVal = document.getElementById('plan-fecha-input').value;
+  if (!inputVal) return;
+  var parts = inputVal.split('-');
+  var fecha = parts[2] + '/' + parts[1] + '/' + parts[0];
+  document.getElementById('plan-fecha-sub').textContent = fecha;
 
-    container.innerHTML = '';
+  var h = Math.floor(planHoraMinutos/60);
+  var m = planHoraMinutos % 60;
+  var horaStr = h + ':' + String(m).padStart(2,'0');
 
-    fechas.forEach((fecha, idx) => {
-      const pedidos = data.dias[fecha];
-      const partes = fecha.split('/');
-      const fechaObj = new Date(parseInt(partes[2]), parseInt(partes[1])-1, parseInt(partes[0]));
-      const esHoy = fechaObj.toDateString() === hoy.toDateString();
-      const esAyer = fechaObj.toDateString() === ayer.toDateString();
-      const nombreDia = diasSem[fechaObj.getDay()] + ' ' + fecha;
+  document.getElementById('plan-list').innerHTML = '<div class="loading-state"><div class="spinner"></div><p>Calculando...</p></div>';
 
-      // Calcular por articulo
-      const articulos = {};
-      let personasBase = 0, minutosTotales = 0, totalBultos = 0, totalPalets = 0;
+  fetch('/api/planificacion-diaria?fecha=' + encodeURIComponent(fecha) + '&merma=' + planMerma + '&hora_inicio=' + horaStr, {
+    headers: { 'X-Session-Token': sessionToken || '' }
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    if (!data.ok) { document.getElementById('plan-list').innerHTML = '<div class="loading-state"><p>Error: ' + data.error + '</p></div>'; return; }
+    renderPlanificacion(data);
+  })
+  .catch(function(){ document.getElementById('plan-list').innerHTML = '<div class="loading-state"><p>Error de conexion</p></div>'; });
+}
 
-      pedidos.forEach(p => {
-        const bultos = parseInt(p.bultos) || 0;
-        const palets = parseFloat(String(p.palets).replace(',','.')) || 0;
-        totalBultos += bultos;
-        totalPalets += palets;
-        const producto = p.producto || 'Sin producto';
-        if (!articulos[producto]) articulos[producto] = { bultos: 0, kg: 0, mins: 0 };
-        articulos[producto].bultos += bultos;
-
-        const est = buscarEstandar(producto);
-        if (est && bultos > 0) {
-          const mins = est.min_por_bulto * bultos;
-          articulos[producto].mins += mins;
-          minutosTotales += mins;
-          personasBase = Math.max(personasBase, est.personas_media);
-          const kgMatch = producto.match(/(\\d+[\.,]?\\d*)\s*[Kk][Gg]/);
-          if (kgMatch) {
-            const kgPorBulto = parseFloat(kgMatch[1].replace(',','.'));
-            articulos[producto].kg += kgPorBulto * bultos;
-          }
-        }
-      });
-
-      // Personas: base del estandar + ajuste manual del usuario
-      const personasBaseInt = personasBase > 0 ? Math.ceil(personasBase) : 10;
-      const ajuste = personasAjuste[fecha] || 0;
-      const personas = personasBaseInt + ajuste;
-      // El tiempo de cada articulo ya incluye las personas del estandar
-      // min_por_bulto * bultos = minutos totales con personas_media personas
-      // Si tenemos mas/menos personas, ajustamos proporcionalmente
-      // El dia dura lo que dure el articulo mas largo (trabajo secuencial del equipo)
-      let maxMinutosArticulo = 0;
-      Object.values(articulos).forEach(art => {
-        if (art.mins > 0) maxMinutosArticulo = Math.max(maxMinutosArticulo, art.mins);
-      });
-      // Ajuste por diferencia de personas vs estandar
-      const factorPersonas = personasBase > 0 ? personasBase / personas : 1;
-      const minutosReales = maxMinutosArticulo * factorPersonas;
-      const horasTotales = minutosReales / 60;
-      const horaFinStr = horasTotales > 0 ? calcularHoraFin(horasTotales) : 'Sin calcular';
-
-      const articulosHtml = Object.entries(articulos).map(([nombre, art]) => `
-        <div class="plan-articulo">
-          <span class="plan-art-nombre">${nombre}</span>
-          <span class="plan-art-bultos">${art.bultos} bul</span>
-          ${art.kg > 0 ? '<span class="plan-art-kg">' + Math.round(art.kg) + ' kg</span>' : ''}
-          ${art.mins > 0 ? '<span class="plan-art-mins">' + Math.round(art.mins) + 'min</span>' : ''}
-        </div>`).join('');
-
-      const div = document.createElement('div');
-      div.className = 'plan-dia-card';
-      div.innerHTML = `
-        <div class="plan-dia-header" onclick="togglePlan(this)">
-          <div>
-            <div class="plan-dia-title">
-              ${nombreDia}
-              ${esHoy ? '<span class="plan-dia-hoy">HOY</span>' : ''}
-              ${esAyer ? '<span class="plan-dia-ayer">AYER</span>' : ''}
-            </div>
-            <div style="font-size:0.7rem;color:var(--texto3);margin-top:2px">${pedidos.length} ped &#183; ${totalBultos} bul &#183; ${Math.round(totalPalets*10)/10} pal</div>
-          </div>
-          <div class="plan-dia-stats">
-            <div class="plan-stat-pill" style="min-width:80px">
-              <div style="display:flex;align-items:center;gap:4px">
-                <button onclick="ajustarPersonas('${fecha}',-1,this)" style="background:var(--borde2);border:none;color:var(--texto);border-radius:4px;padding:1px 5px;cursor:pointer;font-size:0.8rem">-</button>
-                <span class="plan-stat-val" id="pers-${fecha}">${personas}</span>
-                <button onclick="ajustarPersonas('${fecha}',1,this)" style="background:var(--borde2);border:none;color:var(--texto);border-radius:4px;padding:1px 5px;cursor:pointer;font-size:0.8rem">+</button>
-              </div>
-              <span class="plan-stat-lbl">Personas</span>
-            </div>
-            <div class="plan-stat-pill">
-              <span class="plan-stat-val" style="font-size:0.85rem;color:var(--amarillo)" id="hora-${fecha}">${horasTotales > 0 ? calcularHoraFin(horasTotales) : '?'}</span>
-              <span class="plan-stat-lbl">Fin jornada</span>
-            </div>
-          </div>
-        </div>
-        <div class="plan-dia-body ${esHoy ? 'open' : ''}" id="plan-body-${idx}">
-          <div class="plan-horario">
-            <span class="plan-horario-label">&#8987; Horario</span>
-            <span class="plan-horario-value">${String(HORA_INICIO).padStart(2,'0')}:00 &#8594; ${horaFinStr}</span>
-          </div>
-          <div style="margin-top:4px">
-            <div style="font-family:'DM Mono',monospace;font-size:0.6rem;letter-spacing:0.1em;color:var(--texto3);text-transform:uppercase;margin-bottom:6px">Articulos ? Bultos ? Kg ? Tiempo</div>
-            ${articulosHtml || '<p style="font-size:0.75rem;color:var(--texto3)">Sin productos con est?ndares</p>'}
-          </div>
-        </div>`;
-      container.appendChild(div);
-    });
-
-  } catch(e) {
-    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">??</div><p>Error cargando planificacion</p></div>';
+function renderPlanificacion(data) {
+  var container = document.getElementById('plan-list');
+  if (!data.pedidos || data.pedidos.length === 0) {
+    container.innerHTML = '<div class="loading-state"><p>No hay pedidos para ' + data.fecha + '</p></div>';
+    return;
   }
+
+  var r = data.resumen;
+  var html = '';
+
+  // RESUMEN GENERAL
+  html += '<div style="background:var(--card);border:1px solid var(--borde2);border-radius:14px;padding:14px">';
+  html += '<div style="font-family:DM Mono,monospace;font-size:0.62rem;color:var(--texto3);letter-spacing:0.1em;margin-bottom:12px">📋 RESUMEN ' + data.fecha + ' · MERMA ' + data.merma_pct + '%</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px">';
+  html += planStat('📦', r.total_pedidos, 'pedidos');
+  html += planStat('🎯', r.total_palets, 'palets');
+  html += planStat('📬', r.total_bultos, 'bultos');
+  html += '</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">';
+  html += planStat('⚖️', r.total_kg_neto + ' kg', 'kg neto');
+  html += planStat('🌿', r.total_kg_bruto + ' kg', 'kg campo');
+  html += planStat('🏷️', r.total_etiquetas, 'etiquetas');
+  html += '</div>';
+  html += '</div>';
+
+  // POR PRODUCTO
+  html += '<div style="background:var(--card);border:1px solid var(--borde2);border-radius:14px;padding:14px">';
+  html += '<div style="font-family:DM Mono,monospace;font-size:0.62rem;color:var(--texto3);letter-spacing:0.1em;margin-bottom:12px">🥦 NECESIDADES POR PRODUCTO</div>';
+  data.por_producto.forEach(function(p) {
+    html += '<div style="padding:10px 0;border-bottom:1px solid var(--borde)">';
+    html += '<div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.85rem;color:var(--texto);margin-bottom:6px">' + p.producto + '</div>';
+    html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">';
+    html += planStatSmall(p.bultos + ' blt', 'Bultos');
+    html += planStatSmall(p.palets, 'Palets');
+    html += planStatSmall(p.kg_neto + ' kg', 'Neto');
+    html += planStatSmall(p.kg_bruto + ' kg', 'Campo +' + data.merma_pct + '%');
+    html += '</div>';
+    html += '<div style="display:flex;gap:8px;margin-top:6px">';
+    html += '<span style="background:var(--azul-dim);color:var(--azul);padding:3px 8px;border-radius:6px;font-family:DM Mono,monospace;font-size:0.68rem;font-weight:700">👥 ' + p.personas_rec + ' pers</span>';
+    html += '<span style="background:var(--verde-dim);color:var(--verde-vivo);padding:3px 8px;border-radius:6px;font-family:DM Mono,monospace;font-size:0.68rem;font-weight:700">⏱ ' + p.horas.toFixed(1) + 'h</span>';
+    html += '<span style="background:var(--card2);padding:3px 8px;border-radius:6px;font-family:DM Mono,monospace;font-size:0.68rem">🏷️ ' + p.etiquetas + ' etq</span>';
+    html += '</div></div>';
+  });
+  html += '</div>';
+
+  // DETALLE POR PEDIDO
+  html += '<div style="background:var(--card);border:1px solid var(--borde2);border-radius:14px;padding:14px">';
+  html += '<div style="font-family:DM Mono,monospace;font-size:0.62rem;color:var(--texto3);letter-spacing:0.1em;margin-bottom:12px">📋 DETALLE POR PEDIDO · HORARIO ESTIMADO</div>';
+  data.pedidos.forEach(function(p) {
+    html += '<div style="padding:10px 0;border-bottom:1px solid var(--borde)">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">';
+    html += '<div>';
+    html += '<span style="font-family:DM Mono,monospace;font-weight:800;font-size:0.9rem;color:var(--verde-vivo)">#' + p.pedido + '</span>';
+    html += '<span style="font-family:Syne,sans-serif;font-size:0.78rem;color:var(--texto2);margin-left:8px">' + p.cliente + '</span>';
+    html += '</div>';
+    html += '<span style="font-family:DM Mono,monospace;font-size:0.72rem;color:var(--azul);background:var(--azul-dim);padding:2px 8px;border-radius:6px">' + p.hora_inicio + ' → ' + p.hora_fin + '</span>';
+    html += '</div>';
+    html += '<div style="font-family:Syne,sans-serif;font-size:0.78rem;color:var(--texto);margin-bottom:6px">' + p.producto + '</div>';
+    html += '<div style="display:flex;gap:6px;flex-wrap:wrap">';
+    html += '<span style="background:var(--card2);padding:2px 8px;border-radius:5px;font-family:DM Mono,monospace;font-size:0.68rem">' + p.bultos + ' blt · ' + p.palets + ' plt</span>';
+    html += '<span style="background:var(--card2);padding:2px 8px;border-radius:5px;font-family:DM Mono,monospace;font-size:0.68rem">⚖️ ' + p.kg_neto + ' kg → 🌿 ' + p.kg_bruto + ' kg</span>';
+    html += '<span style="background:var(--azul-dim);color:var(--azul);padding:2px 8px;border-radius:5px;font-family:DM Mono,monospace;font-size:0.68rem">👥 ' + p.personas_rec + ' pers · ⏱ ' + p.horas_estimadas + 'h</span>';
+    if (p.envase) html += '<span style="background:var(--card2);padding:2px 8px;border-radius:5px;font-family:DM Mono,monospace;font-size:0.68rem">📦 ' + p.envase + '</span>';
+    html += '</div></div>';
+  });
+  html += '</div>';
+
+  container.innerHTML = html;
+}
+
+function planStat(icon, value, label) {
+  return '<div style="background:var(--card2);border-radius:10px;padding:10px;text-align:center">' +
+    '<div style="font-size:1.1rem">' + icon + '</div>' +
+    '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.1rem;color:var(--texto)">' + value + '</div>' +
+    '<div style="font-family:DM Mono,monospace;font-size:0.58rem;color:var(--texto3)">' + label + '</div>' +
+    '</div>';
+}
+
+function planStatSmall(value, label) {
+  return '<div style="background:var(--card2);border-radius:8px;padding:6px;text-align:center">' +
+    '<div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;color:var(--texto)">' + value + '</div>' +
+    '<div style="font-family:DM Mono,monospace;font-size:0.55rem;color:var(--texto3)">' + label + '</div>' +
+    '</div>';
+}
+
+function imprimirPlanificacion() {
+  var contenido = document.getElementById('plan-list');
+  if (!contenido) return;
+  var ventana = window.open('', '_blank');
+  ventana.document.write('<html><head><title>Planificacion ICA PRODUKT</title>');
+  ventana.document.write('<style>body{font-family:Arial,sans-serif;margin:20px;font-size:11px;color:#000}');
+  ventana.document.write('h2{margin:0 0 4px 0}');
+  ventana.document.write('@media print{@page{margin:12mm;size:A4}}</style></head><body>');
+  ventana.document.write('<h2>ICA PRODUKT 2025, S.L. — Planificacion Diaria</h2>');
+  ventana.document.write('<p>' + document.getElementById('plan-fecha-sub').textContent + '</p>');
+  ventana.document.write(contenido.innerHTML);
+  ventana.document.write('</body></html>');
+  ventana.document.close();
+  setTimeout(function(){ ventana.print(); }, 400);
 }
 
 function togglePlan(header) {
