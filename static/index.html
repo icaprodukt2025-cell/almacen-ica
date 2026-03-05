@@ -695,6 +695,16 @@ textarea::placeholder { color:var(--texto3); }
       </div>
     </div>
 
+    <!-- DASHBOARD BUTTON -->
+    <button onclick="goTo('dashboard')" style="width:100%;margin:0 0 8px 0;padding:14px 18px;background:linear-gradient(135deg,var(--verde-vivo),#00b894);border:none;border-radius:14px;color:#fff;font-family:'Syne',sans-serif;font-weight:800;font-size:0.95rem;cursor:pointer;display:flex;align-items:center;gap:12px;box-shadow:0 4px 15px rgba(0,200,100,0.3)">
+      <span style="font-size:1.4rem">📊</span>
+      <div style="text-align:left">
+        <div>Dashboard & Estadísticas</div>
+        <div style="font-size:0.72rem;font-weight:400;opacity:0.85">Resumen anual · Top clientes · Top productos</div>
+      </div>
+      <span style="margin-left:auto;font-size:1.2rem">›</span>
+    </button>
+
     <div>
       <div class="menu-section-title">Gestion de almacen</div>
       <div class="menu-grid">
@@ -1627,6 +1637,123 @@ async function autoCrearPaletsFecha(fecha, pedidos) {
   });
 }
 
+
+// ===== DASHBOARD =====
+function cargarDashboard() {
+  var container = document.getElementById('dashboard-content');
+  container.innerHTML = '<div class="loading-state"><div class="spinner"></div><p>Cargando...</p></div>';
+  var periodo = document.getElementById('dash-periodo').value;
+  fetch('/api/dashboard?periodo=' + periodo, { headers: { 'X-Session-Token': sessionToken || '' } })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if (!data.ok) { container.innerHTML = '<div class="loading-state"><p>Error: ' + data.error + '</p></div>'; return; }
+      renderDashboard(data);
+    })
+    .catch(function(e){ container.innerHTML = '<div class="loading-state"><p>Error de conexión</p></div>'; });
+}
+
+function renderDashboard(d) {
+  var container = document.getElementById('dashboard-content');
+  var periodoLabel = {'hoy':'Hoy','semana':'Esta semana','mes':'Este mes','anyo':'Este año'}[d.periodo] || d.periodo;
+  var html = '';
+
+  // --- RESUMEN HOY ---
+  html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">';
+  html += tarjetaStat('📦', 'Pedidos hoy', d.resumen_hoy.pedidos, '');
+  html += tarjetaStat('🎯', 'Palets hoy', d.resumen_hoy.palets, '');
+  html += tarjetaStat('📬', 'Bultos hoy', d.resumen_hoy.bultos, '');
+  html += '</div>';
+
+  // --- TOTALES PERIODO ---
+  html += '<div style="background:var(--card);border:1px solid var(--borde2);border-radius:14px;padding:14px">';
+  html += '<div style="font-family:DM Mono,monospace;font-size:0.65rem;color:var(--texto3);letter-spacing:0.1em;margin-bottom:10px">RESUMEN ' + periodoLabel.toUpperCase() + '</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center">';
+  html += statInline('Pedidos', d.totales.pedidos);
+  html += statInline('Palets', d.totales.palets);
+  html += statInline('Bultos', d.totales.bultos);
+  html += '</div></div>';
+
+  // --- GRAFICO SEMANA ---
+  if (d.pedidos_semana && d.pedidos_semana.length > 0) {
+    var maxVal = Math.max.apply(null, d.pedidos_semana.map(function(x){ return x.palets; }));
+    html += '<div style="background:var(--card);border:1px solid var(--borde2);border-radius:14px;padding:14px">';
+    html += '<div style="font-family:DM Mono,monospace;font-size:0.65rem;color:var(--texto3);letter-spacing:0.1em;margin-bottom:12px">📈 PALETS POR SEMANA</div>';
+    html += '<div style="display:flex;align-items:flex-end;gap:4px;height:80px;overflow-x:auto">';
+    d.pedidos_semana.forEach(function(s) {
+      var pct = maxVal > 0 ? (s.palets / maxVal * 100) : 0;
+      var isCurrentWeek = false;
+      var now = new Date();
+      var weekNum = getWeekNumber(now);
+      isCurrentWeek = s.semana === ('S' + String(weekNum).padStart(2,'0'));
+      html += '<div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;min-width:28px">';
+      html += '<div style="font-family:DM Mono,monospace;font-size:0.5rem;color:var(--texto3)">' + s.palets + '</div>';
+      html += '<div style="width:100%;border-radius:4px 4px 0 0;background:' + (isCurrentWeek ? 'var(--verde-vivo)' : 'var(--verde-dim)') + ';height:' + Math.max(4, pct) + '%;transition:height 0.3s"></div>';
+      html += '<div style="font-family:DM Mono,monospace;font-size:0.5rem;color:var(--texto3)">' + s.semana + '</div>';
+      html += '</div>';
+    });
+    html += '</div></div>';
+  }
+
+  // --- TOP CLIENTES ---
+  if (d.top_clientes && d.top_clientes.length > 0) {
+    var maxC = d.top_clientes[0].palets;
+    html += '<div style="background:var(--card);border:1px solid var(--borde2);border-radius:14px;padding:14px">';
+    html += '<div style="font-family:DM Mono,monospace;font-size:0.65rem;color:var(--texto3);letter-spacing:0.1em;margin-bottom:12px">🏆 TOP CLIENTES — ' + periodoLabel.toUpperCase() + '</div>';
+    d.top_clientes.forEach(function(c, i) {
+      var pct = maxC > 0 ? (c.palets / maxC * 100) : 0;
+      html += '<div style="margin-bottom:10px">';
+      html += '<div style="display:flex;justify-content:space-between;margin-bottom:4px">';
+      html += '<span style="font-family:Syne,sans-serif;font-size:0.78rem;font-weight:700;color:var(--texto)">' + (i+1) + '. ' + c.cliente + '</span>';
+      html += '<span style="font-family:DM Mono,monospace;font-size:0.75rem;color:var(--verde-vivo);font-weight:700">' + c.palets + ' plt</span>';
+      html += '</div>';
+      html += '<div style="height:6px;background:var(--card2);border-radius:3px"><div style="height:100%;width:' + pct + '%;background:linear-gradient(90deg,var(--verde-vivo),var(--azul));border-radius:3px;transition:width 0.5s"></div></div>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+
+  // --- TOP PRODUCTOS ---
+  if (d.top_productos && d.top_productos.length > 0) {
+    var maxP = d.top_productos[0].palets;
+    html += '<div style="background:var(--card);border:1px solid var(--borde2);border-radius:14px;padding:14px">';
+    html += '<div style="font-family:DM Mono,monospace;font-size:0.65rem;color:var(--texto3);letter-spacing:0.1em;margin-bottom:12px">🥦 TOP PRODUCTOS — ' + periodoLabel.toUpperCase() + '</div>';
+    d.top_productos.forEach(function(p, i) {
+      var pct = maxP > 0 ? (p.palets / maxP * 100) : 0;
+      html += '<div style="margin-bottom:10px">';
+      html += '<div style="display:flex;justify-content:space-between;margin-bottom:4px">';
+      html += '<span style="font-family:Syne,sans-serif;font-size:0.78rem;font-weight:700;color:var(--texto)">' + (i+1) + '. ' + p.producto + '</span>';
+      html += '<span style="font-family:DM Mono,monospace;font-size:0.75rem;color:var(--azul);font-weight:700">' + p.palets + ' plt</span>';
+      html += '</div>';
+      html += '<div style="height:6px;background:var(--card2);border-radius:3px"><div style="height:100%;width:' + pct + '%;background:linear-gradient(90deg,var(--azul),var(--verde-vivo));border-radius:3px;transition:width 0.5s"></div></div>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+
+  container.innerHTML = html;
+}
+
+function tarjetaStat(icon, label, value, sub) {
+  return '<div style="background:var(--card);border:1px solid var(--borde2);border-radius:12px;padding:12px;text-align:center">' +
+    '<div style="font-size:1.3rem">' + icon + '</div>' +
+    '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.5rem;color:var(--verde-vivo);line-height:1.2">' + value + '</div>' +
+    '<div style="font-family:DM Mono,monospace;font-size:0.6rem;color:var(--texto3);margin-top:2px">' + label + '</div>' +
+    '</div>';
+}
+
+function statInline(label, value) {
+  return '<div><div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.3rem;color:var(--texto)">' + value + '</div>' +
+    '<div style="font-family:DM Mono,monospace;font-size:0.62rem;color:var(--texto3)">' + label + '</div></div>';
+}
+
+function getWeekNumber(d) {
+  var date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  var dayNum = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+  var yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  return Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+}
+
 // ===== ESTADO COMPARTIDO =====
 function saveEstado(pedido, tipo, valor) {
   try {
@@ -1753,6 +1880,7 @@ function goTo(screen) {
   }
   if (screen === 'informes') { setTimeout(cargarInformes, 100); }
   if (screen === 'manipulado') { goToManipulado(); } else { pararCronometros(); }
+  if (screen === 'dashboard') { cargarDashboard(); }
   if (screen === 'cargas') { loadEstado(function() { renderCargas(); }); }
   if (screen === 'planificacion') cargarPlanificacion();
 }
@@ -3805,6 +3933,30 @@ function anularItemMan(row) {
       <button class="modal-cancel" onclick="document.getElementById('modal-destrio').classList.remove('open')">Cerrar</button>
       <button class="modal-confirm" onclick="guardarDestrio()">&#43; Añadir</button>
     </div>
+  </div>
+</div>
+
+<!-- ===== DASHBOARD ===== -->
+<div class="screen" id="screen-dashboard">
+  <div class="back-header">
+    <button class="back-btn" onclick="goTo('home')">&#8249;</button>
+    <div>
+      <div class="back-title">📊 Dashboard</div>
+      <div class="back-subtitle">Resumen y estadísticas</div>
+    </div>
+    <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+      <select id="dash-periodo" onchange="cargarDashboard()" style="padding:6px 10px;border-radius:8px;border:1px solid var(--borde2);background:var(--card);color:var(--texto);font-family:'Syne',sans-serif;font-size:0.75rem;font-weight:700">
+        <option value="hoy">Hoy</option>
+        <option value="semana">Esta semana</option>
+        <option value="mes">Este mes</option>
+        <option value="anyo" selected>Este año</option>
+      </select>
+      <button class="sync-btn" onclick="cargarDashboard()">&#8634;</button>
+    </div>
+  </div>
+
+  <div class="scroll-content" id="dashboard-content" style="padding:14px;gap:14px;display:flex;flex-direction:column">
+    <div class="loading-state"><div class="spinner"></div><p>Cargando dashboard...</p></div>
   </div>
 </div>
 </body>
