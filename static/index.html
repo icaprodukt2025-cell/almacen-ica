@@ -2377,7 +2377,7 @@ function renderListaPedidos(pedidosFiltrados) {
           card.style.background = 'rgba(255,152,0,0.08)';
         }
       }
-      if (paletActivoInfo[p.pedido]) {
+      if (paletActivoInfo && paletActivoInfo[p.pedido]) {
         card.style.borderColor = 'var(--azul)';
         card.style.boxShadow = '0 0 8px rgba(41,121,255,0.3)';
       }
