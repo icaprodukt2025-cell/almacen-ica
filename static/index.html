@@ -988,6 +988,9 @@ function buscarEstandar(producto) {
 let HORA_INICIO = 9; // Hora de inicio por defecto
 let appData = { pedidos: [], cargas: [], planificacion: {} };
 let estadosPedidos = {}; // { numPedido: 'pendiente'|'confeccionado'|'cargado' }
+var pedidosDataCache = {};
+var fechaSeleccionada = null;
+var pedidosVistos = {};
 
 // ===== AUTH =====
 var sessionToken = localStorage.getItem('ica_session_token') || '';
@@ -1987,24 +1990,27 @@ function cargarPedidos() {
   fetch('/api/pedidos', { headers: { 'X-Session-Token': sessionToken || '' } })
     .then(function(r){ return r.json(); })
     .then(function(data){
-      if (!data.ok) { container.innerHTML = '<div class="loading-state"><p>Error: ' + (data.error||'') + '</p></div>'; return; }
-      pedidosDiasData = {};
-      (data.pedidos || []).forEach(function(p){
-        var f = p.fecha_salida || '';
-        if (!pedidosDiasData[f]) pedidosDiasData[f] = [];
-        pedidosDiasData[f].push(p);
-      });
-      initDateCarousel(data.dias || [], 'date-carousel', function(fecha){
-        pedidosFechaSeleccionada = fecha;
-        renderPedidos(pedidosDiasData[fecha] || []);
-      });
-      if (!pedidosFechaSeleccionada && data.dias && data.dias.length) {
-        pedidosFechaSeleccionada = data.dias[0];
+      if (!data.ok) {
+        container.innerHTML = '<div class="loading-state"><p>Error: ' + (data.error||'sin respuesta') + '</p></div>';
+        return;
       }
-      renderPedidos(pedidosDiasData[pedidosFechaSeleccionada] || []);
-      actualizarStatsPedidos(pedidosDiasData[pedidosFechaSeleccionada] || []);
+      // Store in pedidosDataCache (used by aplicarFiltrosPedidos)
+      pedidosDataCache = {};
+      (data.pedidos || []).forEach(function(p) {
+        var f = p.fecha_salida || '';
+        if (!pedidosDataCache[f]) pedidosDataCache[f] = [];
+        pedidosDataCache[f].push(p);
+      });
+      var dias = data.dias || Object.keys(pedidosDataCache).sort();
+      initDateCarousel(dias, 'date-carousel', function(fecha) {
+        fechaSeleccionada = fecha;
+        aplicarFiltrosPedidos();
+        actualizarStatsPedidos(pedidosDataCache[fecha] || []);
+      });
     })
-    .catch(function(e){ container.innerHTML = '<div class="loading-state"><p>Error de conexion</p></div>'; });
+    .catch(function(e) {
+      container.innerHTML = '<div class="loading-state"><p>Error de conexion: ' + e + '</p></div>';
+    });
 }
 
 function renderPedidos(pedidos) {
