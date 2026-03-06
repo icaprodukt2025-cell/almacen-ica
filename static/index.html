@@ -2114,29 +2114,36 @@ function initDateCarousel(dias, carouselId, onSelect) {
   var hoy = new Date();
   var hoyStr = String(hoy.getDate()).padStart(2,'0') + '/' + String(hoy.getMonth()+1).padStart(2,'0') + '/' + hoy.getFullYear();
   carousel.innerHTML = '';
-  dias.forEach(function(fecha, i) {
+  var primerBtn = null;
+  var hoyBtn = null;
+  dias.forEach(function(fecha) {
     var parts = fecha.split('/');
+    if (parts.length < 3) return;
     var d = new Date(parseInt(parts[2]), parseInt(parts[1])-1, parseInt(parts[0]));
     var diaNom = DIAS_ES[d.getDay()];
     var mesNom = MESES_ES[d.getMonth()];
     var isHoy = fecha === hoyStr;
     var btn = document.createElement('button');
-    btn.className = 'date-btn' + (isHoy ? ' active' : '');
-    btn.innerHTML = '<div class="date-day-name">' + diaNom.toUpperCase() + '</div>' +
-      '<div class="date-day-num">' + parts[0] + '</div>' +
-      '<div class="date-month">' + mesNom + '</div>' +
-      '<div class="date-count" id="cnt-' + carouselId + '-' + i + '">—</div>';
+    btn.className = 'date-chip' + (isHoy ? ' hoy' : '');
+    btn.innerHTML =
+      '<div class="chip-dia">' + diaNom.toUpperCase() + '</div>' +
+      '<div class="chip-num">' + parts[0] + '</div>' +
+      '<div class="chip-mes">' + mesNom + '</div>' +
+      '<div class="chip-count" id="cnt-' + carouselId + '-' + fecha.replace(/\//g,'-') + '">—</div>';
     btn.onclick = function() {
-      carousel.querySelectorAll('.date-btn').forEach(function(b){ b.classList.remove('active'); });
+      carousel.querySelectorAll('.date-chip').forEach(function(b){ b.classList.remove('active'); });
       btn.classList.add('active');
       onSelect(fecha);
     };
     carousel.appendChild(btn);
-    if (isHoy) setTimeout(function(){ btn.click(); }, 100);
+    if (!primerBtn) primerBtn = btn;
+    if (isHoy) hoyBtn = btn;
   });
-  if (!dias.some(function(f){ return f === hoyStr; }) && dias.length > 0) {
-    setTimeout(function(){ carousel.querySelectorAll('.date-btn')[0].click(); }, 100);
-  }
+  // Auto-click hoy or first
+  setTimeout(function(){
+    if (hoyBtn) hoyBtn.click();
+    else if (primerBtn) primerBtn.click();
+  }, 50);
 }
 
 // ===== MANIPULADO =====
@@ -2481,36 +2488,52 @@ function renderListaPedidos(lista) {
   if (!container) return;
 
   if (!lista || lista.length === 0) {
-    container.innerHTML = '<div class="loading-state"><p>Sin pedidos para este d\u00eda</p></div>';
+    container.innerHTML = '<div class="loading-state"><p>Sin pedidos para este día</p></div>';
     return;
   }
 
   var parts = [];
   lista.forEach(function(p) {
-    var esNuevo = esPedidoNuevo(p.pedido + '|' + (p.producto||'') + '|' + (p.fecha_salida||''));
+    var key    = p.pedido + '|' + (p.producto||'') + '|' + (p.fecha_salida||'');
+    var esNuevo = esPedidoNuevo(key);
     var esProg  = (p.tipo||'').toUpperCase().indexOf('PROG') !== -1;
     var tColor  = esProg ? 'var(--azul)' : 'var(--verde-vivo)';
-    var tBg     = esProg ? 'var(--azul-dim)' : 'var(--verde-dim)';
+
     var card = '<div class="pedido-card">';
-    card += '<div class="pedido-header">';
-    card += '<span class="pedido-num" style="color:' + tColor + '">#' + (p.pedido||'\u2014') + '</span>';
+
+    // Header principal
+    card += '<div class="pedido-card-header">';
+
+    // Número pedido
+    card += '<div style="flex-shrink:0;text-align:center;min-width:44px">';
+    card += '<div class="pedido-num" style="color:' + tColor + '">#' + (p.pedido||'—') + '</div>';
+    card += '</div>';
+
+    // Info central
+    card += '<div class="pedido-main">';
+    card += '<div class="pedido-producto">' + (p.producto||'—') + '</div>';
+    card += '<div class="pedido-cliente">' + (p.cliente||'') + '</div>';
+    card += '<div class="pedido-chips">';
+    if (p.palets)  card += '<span class="chip verde">🎯 ' + p.palets + ' plt</span>';
+    if (p.bultos)  card += '<span class="chip">📦 ' + p.bultos + ' blt</span>';
+    if (p.kilos && p.kilos > 0) card += '<span class="chip">⚖️ ' + p.kilos + ' kg</span>';
+    if (p.envase && p.envase !== 'nan' && p.envase !== '') card += '<span class="chip">' + p.envase + '</span>';
+    if (p.lote && p.lote !== 'nan' && p.lote !== '') card += '<span class="chip amarillo">L: ' + p.lote + '</span>';
+    if (p.t_cult && p.t_cult !== 'nan' && p.t_cult !== '') card += '<span class="chip verde">' + p.t_cult + '</span>';
+    card += '</div>';
+    card += '</div>';
+
+    // Estado / tipo derecha
+    card += '<div class="pedido-status">';
     if (esNuevo) card += '<span class="badge-nuevo">NUEVO</span>';
-    card += '<span style="margin-left:auto;font-family:DM Mono,monospace;font-size:0.6rem;background:' + tBg + ';color:' + tColor + ';padding:2px 7px;border-radius:5px">' + (esProg ? 'PROG' : 'PED') + '</span>';
+    card += '<span class="status-badge">' + (esProg ? 'PROG' : 'PED') + '</span>';
     card += '</div>';
-    card += '<div class="pedido-cliente">' + (p.cliente||'\u2014') + '</div>';
-    card += '<div style="font-family:DM Mono,monospace;font-size:0.72rem;color:var(--texto2);margin:2px 0">' + (p.producto||'');
-    if (p.t_cult && p.t_cult !== 'nan') card += ' <span style="background:var(--verde-dim);color:var(--verde-vivo);padding:1px 5px;border-radius:4px;font-size:0.6rem">' + p.t_cult + '</span>';
+
     card += '</div>';
-    card += '<div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">';
-    if (p.palets)  card += '<span class="pedido-stat">\uD83C\uDFAF ' + p.palets + ' plt</span>';
-    if (p.bultos)  card += '<span class="pedido-stat">\uD83D\uDCE6 ' + p.bultos + ' blt</span>';
-    if (p.kilos && p.kilos > 0) card += '<span class="pedido-stat">\u2696\uFE0F ' + p.kilos + ' kg</span>';
-    if (p.envase && p.envase !== 'nan') card += '<span class="pedido-stat">' + p.envase + '</span>';
     card += '</div>';
-    if (p.lote && p.lote !== 'nan' && p.lote !== '') card += '<div style="font-family:DM Mono,monospace;font-size:0.65rem;color:var(--texto3);margin-top:3px">Lote: ' + p.lote + '</div>';
-    card += '</div>';
+
     parts.push(card);
-    marcarPedidoVisto(p.pedido + '|' + (p.producto||'') + '|' + (p.fecha_salida||''));
+    marcarPedidoVisto(key);
   });
 
   container.innerHTML = parts.join('');
