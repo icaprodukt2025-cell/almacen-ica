@@ -1934,6 +1934,431 @@ function imprimirResumen() {
   setTimeout(function(){ ventana.print(); }, 400);
 }
 
+
+
+// ===== NAVEGACION =====
+function goTo(screen) {
+  document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+  var el = document.getElementById('screen-' + screen);
+  if (el) el.classList.add('active');
+  pararCronometros();
+  if (screen === 'pedidos') { mostrarTopbarPedidos(); cargarPedidos(); }
+  if (screen === 'cargas') { cargarCargas(); }
+  if (screen === 'manipulado') { goToManipulado(); }
+  if (screen === 'planificacion') { initPlanificacion(); }
+  if (screen === 'dashboard') { cargarDashboard(); }
+  if (screen === 'organizador') { cargarOrganizador(); }
+  if (screen === 'home') { checkStatus(); }
+}
+
+// ===== STATUS =====
+function checkStatus() {
+  fetch('/api/status', { headers: { 'X-Session-Token': sessionToken || '' } })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var dot = document.getElementById('statusDot');
+      var txt = document.getElementById('statusText');
+      if (d.ok) {
+        if (dot) { dot.style.background = '#00e676'; }
+        if (txt) txt.textContent = 'En línea';
+        document.getElementById('statPedidosHoy').textContent = d.pedidos_hoy || 0;
+        document.getElementById('statCargasHoy').textContent = d.lineas_carga || 0;
+      } else {
+        if (dot) dot.style.background = '#ff5252';
+        if (txt) txt.textContent = 'Error';
+      }
+    })
+    .catch(function(){
+      var dot = document.getElementById('statusDot');
+      if (dot) dot.style.background = '#ff9800';
+    });
+}
+
+// ===== PEDIDOS =====
+var pedidosFechaSeleccionada = null;
+var pedidosDiasData = {};
+var pedidosFiltroProducto = '';
+var pedidosFiltroNum = '';
+
+function cargarPedidos() {
+  var container = document.getElementById('pedidos-list');
+  if (!container) return;
+  container.innerHTML = '<div class="loading-state"><div class="spinner"></div><p>Cargando pedidos...</p></div>';
+  fetch('/api/pedidos', { headers: { 'X-Session-Token': sessionToken || '' } })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if (!data.ok) { container.innerHTML = '<div class="loading-state"><p>Error: ' + (data.error||'') + '</p></div>'; return; }
+      pedidosDiasData = {};
+      (data.pedidos || []).forEach(function(p){
+        var f = p.fecha_salida || '';
+        if (!pedidosDiasData[f]) pedidosDiasData[f] = [];
+        pedidosDiasData[f].push(p);
+      });
+      initDateCarousel(data.dias || [], 'date-carousel', function(fecha){
+        pedidosFechaSeleccionada = fecha;
+        renderPedidos(pedidosDiasData[fecha] || []);
+      });
+      if (!pedidosFechaSeleccionada && data.dias && data.dias.length) {
+        pedidosFechaSeleccionada = data.dias[0];
+      }
+      renderPedidos(pedidosDiasData[pedidosFechaSeleccionada] || []);
+      actualizarStatsPedidos(pedidosDiasData[pedidosFechaSeleccionada] || []);
+    })
+    .catch(function(e){ container.innerHTML = '<div class="loading-state"><p>Error de conexion</p></div>'; });
+}
+
+function renderPedidos(pedidos) {
+  var container = document.getElementById('pedidos-list');
+  if (!container) return;
+  aplicarFiltrosPedidos(pedidos);
+}
+
+function aplicarFiltrosPedidosLista(pedidos) {
+  var fn = (document.getElementById('filtro-pedido-num')||{value:''}).value.toLowerCase();
+  var fp = (document.getElementById('filtro-producto')||{value:''}).value.toLowerCase();
+  return pedidos.filter(function(p){
+    return (!fn || String(p.pedido||'').toLowerCase().includes(fn)) &&
+           (!fp || String(p.producto||'').toLowerCase().includes(fp));
+  });
+}
+
+// ===== CARGAS =====
+var cargasFiltroActivo = 'todos';
+var cargasFechaSeleccionada = null;
+var cargasDiasData = {};
+
+function cargarCargas() {
+  var container = document.getElementById('cargas-list');
+  if (!container) return;
+  container.innerHTML = '<div class="loading-state"><div class="spinner"></div><p>Cargando cargas...</p></div>';
+  fetch('/api/cargas', { headers: { 'X-Session-Token': sessionToken || '' } })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if (!data.ok) { container.innerHTML = '<div class="loading-state"><p>Error: ' + (data.error||'') + '</p></div>'; return; }
+      cargasDiasData = {};
+      (data.cargas || []).forEach(function(c){
+        var f = c.fecha || '';
+        if (!cargasDiasData[f]) cargasDiasData[f] = [];
+        cargasDiasData[f].push(c);
+      });
+      initDateCarousel(data.dias || [], 'date-carousel-cargas', function(fecha){
+        cargasFechaSeleccionada = fecha;
+        renderCargas(cargasDiasData[fecha] || []);
+      });
+      if (!cargasFechaSeleccionada && data.dias && data.dias.length) cargasFechaSeleccionada = data.dias[0];
+      renderCargas(cargasDiasData[cargasFechaSeleccionada] || []);
+    })
+    .catch(function(){ container.innerHTML = '<div class="loading-state"><p>Error de conexion</p></div>'; });
+}
+
+function filtrarCargas(tipo, el) {
+  cargasFiltroActivo = tipo;
+  document.querySelectorAll('.filter-tab').forEach(function(t){ t.classList.remove('active'); });
+  if (el) el.classList.add('active');
+  renderCargas(cargasDiasData[cargasFechaSeleccionada] || []);
+}
+
+function renderCargas(cargas) {
+  var container = document.getElementById('cargas-list');
+  if (!container) return;
+  var filtered = cargasFiltroActivo === 'todos' ? cargas :
+    cargas.filter(function(c){ return (c.estado||'').toLowerCase().includes(cargasFiltroActivo); });
+  if (filtered.length === 0) {
+    container.innerHTML = '<div class="loading-state"><p>Sin cargas para este día</p></div>';
+    return;
+  }
+  var html = '';
+  filtered.forEach(function(c) {
+    var estado = (c.estado||'').toLowerCase();
+    var cargado = estado.includes('cargado') || estado.includes('confirmado');
+    html += '<div class="pedido-card" style="' + (cargado ? 'opacity:0.7' : '') + '">';
+    html += '<div class="pedido-header">';
+    html += '<span class="pedido-num">#' + (c.pedido||c.numero||'—') + '</span>';
+    html += '<span class="pedido-badge ' + (cargado ? 'badge-ok' : 'badge-pendiente') + '">' + (c.estado||'Pendiente') + '</span>';
+    html += '</div>';
+    html += '<div class="pedido-cliente">' + (c.cliente||c.transportista||'') + '</div>';
+    if (c.matricula) html += '<div class="pedido-detalle">🚛 ' + c.matricula + '</div>';
+    if (c.palets) html += '<div class="pedido-detalle">🎯 ' + c.palets + ' palets</div>';
+    html += '</div>';
+  });
+  container.innerHTML = html;
+  var summary = document.getElementById('cargas-summary');
+  if (summary) summary.innerHTML = '<span>' + filtered.length + ' cargas</span>';
+}
+
+// ===== DATE CAROUSEL =====
+function initDateCarousel(dias, carouselId, onSelect) {
+  var DIAS_ES = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  var MESES_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  var carousel = document.getElementById(carouselId);
+  if (!carousel) return;
+  var hoy = new Date();
+  var hoyStr = String(hoy.getDate()).padStart(2,'0') + '/' + String(hoy.getMonth()+1).padStart(2,'0') + '/' + hoy.getFullYear();
+  carousel.innerHTML = '';
+  dias.forEach(function(fecha, i) {
+    var parts = fecha.split('/');
+    var d = new Date(parseInt(parts[2]), parseInt(parts[1])-1, parseInt(parts[0]));
+    var diaNom = DIAS_ES[d.getDay()];
+    var mesNom = MESES_ES[d.getMonth()];
+    var isHoy = fecha === hoyStr;
+    var btn = document.createElement('button');
+    btn.className = 'date-btn' + (isHoy ? ' active' : '');
+    btn.innerHTML = '<div class="date-day-name">' + diaNom.toUpperCase() + '</div>' +
+      '<div class="date-day-num">' + parts[0] + '</div>' +
+      '<div class="date-month">' + mesNom + '</div>' +
+      '<div class="date-count" id="cnt-' + carouselId + '-' + i + '">—</div>';
+    btn.onclick = function() {
+      carousel.querySelectorAll('.date-btn').forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      onSelect(fecha);
+    };
+    carousel.appendChild(btn);
+    if (isHoy) setTimeout(function(){ btn.click(); }, 100);
+  });
+  if (!dias.some(function(f){ return f === hoyStr; }) && dias.length > 0) {
+    setTimeout(function(){ carousel.querySelectorAll('.date-btn')[0].click(); }, 100);
+  }
+}
+
+// ===== MANIPULADO =====
+var manFechaSelected = null;
+var manDiasDataLocal = {};
+var manFiltroActivo = 'todos';
+
+function goToManipulado() {
+  manFechaSelected = null;
+  var hoy = new Date();
+  var dd = String(hoy.getDate()).padStart(2,'0');
+  var mm = String(hoy.getMonth()+1).padStart(2,'0');
+  var yyyy = hoy.getFullYear();
+  var hoyStr = dd + '/' + mm + '/' + yyyy;
+  document.getElementById('man-fecha-sub').textContent = hoyStr;
+  cargarManipuladoData(hoyStr);
+  initManDateCarousel();
+}
+
+function cargarManipuladoData(fecha) {
+  var container = document.getElementById('man-list');
+  if (!container) return;
+  container.innerHTML = '<div class="loading-state"><div class="spinner"></div><p>Cargando...</p></div>';
+  fetch('/api/manipulado?fecha=' + encodeURIComponent(fecha), { headers: { 'X-Session-Token': sessionToken || '' } })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if (!data.ok) { container.innerHTML = '<div class="loading-state"><p>' + (data.error||'Error') + '</p></div>'; return; }
+      manDiasDataLocal[fecha] = data.lineas || [];
+      renderManipulado(manDiasDataLocal[fecha]);
+      renderLineasPanel(data.lineas_resumen || []);
+    })
+    .catch(function(){ container.innerHTML = '<div class="loading-state"><p>Error de conexion</p></div>'; });
+}
+
+function renderManipulado(lineas) {
+  var container = document.getElementById('man-list');
+  if (!container) return;
+  var filtered = manFiltroActivo === 'todos' ? lineas :
+    lineas.filter(function(l){ return (l.estado||'').toLowerCase().includes(manFiltroActivo); });
+  if (filtered.length === 0) {
+    container.innerHTML = '<div class="loading-state"><p>Sin registros</p></div>';
+    return;
+  }
+  var html = '';
+  filtered.forEach(function(l) {
+    var enCurso = (l.estado||'').toLowerCase() === 'en_curso' || (l.estado||'').toLowerCase() === 'en curso';
+    html += '<div class="pedido-card" style="border-color:' + (enCurso ? 'var(--azul)' : 'var(--borde2)') + '">';
+    html += '<div class="pedido-header">';
+    html += '<span class="pedido-num">#' + (l.pedido||'—') + '</span>';
+    html += '<span class="pedido-badge ' + (enCurso ? 'badge-en-curso' : 'badge-ok') + '">' + (l.estado||'') + '</span>';
+    html += '</div>';
+    html += '<div class="pedido-cliente">' + (l.producto||l.presentacion||'') + '</div>';
+    if (l.personas) html += '<div class="pedido-detalle">👥 ' + l.personas + ' personas</div>';
+    if (l.palets) html += '<div class="pedido-detalle">🎯 ' + l.palets + ' palet · ' + (l.lote||'') + '</div>';
+    html += '</div>';
+  });
+  container.innerHTML = html;
+}
+
+function filtrarManipulado(tipo, el) {
+  manFiltroActivo = tipo;
+  document.querySelectorAll('#screen-manipulado .filter-tab').forEach(function(t){ t.classList.remove('active'); });
+  if (el) el.classList.add('active');
+  var fecha = manFechaSelected || (function(){ var h=new Date(); return String(h.getDate()).padStart(2,'0')+'/'+String(h.getMonth()+1).padStart(2,'0')+'/'+h.getFullYear(); })();
+  renderManipulado(manDiasDataLocal[fecha] || []);
+}
+
+function renderLineasPanel(resumen) {
+  var panel = document.getElementById('man-lineas-panel');
+  if (!panel || !resumen.length) { if(panel) panel.innerHTML=''; return; }
+  var html = '<div style="padding:8px 14px;display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--borde)">';
+  resumen.forEach(function(r) {
+    html += '<div style="background:var(--card);border:1px solid var(--borde2);border-radius:8px;padding:6px 10px;font-family:DM Mono,monospace;font-size:0.68rem">';
+    html += '<span style="font-weight:700">' + (r.linea||r.nombre||'') + '</span> · ' + (r.en_curso||0) + ' en curso';
+    html += '</div>';
+  });
+  html += '</div>';
+  panel.innerHTML = html;
+}
+
+function abrirModalManual() {
+  var modal = document.getElementById('modal-iniciar-man');
+  if (modal) modal.classList.add('open');
+}
+
+// ===== PLANIFICACION =====
+var planHoraMinutos = 7 * 60;
+var planMerma = 12;
+
+function initPlanificacion() {
+  var manana = new Date();
+  manana.setDate(manana.getDate() + 1);
+  var dd = String(manana.getDate()).padStart(2,'0');
+  var mm = String(manana.getMonth()+1).padStart(2,'0');
+  var yyyy = manana.getFullYear();
+  var inp = document.getElementById('plan-fecha-input');
+  if (inp) inp.value = yyyy + '-' + mm + '-' + dd;
+  cargarPlanificacionDiaria();
+}
+
+function ajustarHoraplan(delta) {
+  planHoraMinutos = Math.max(0, Math.min(23*60, planHoraMinutos + delta));
+  var h = Math.floor(planHoraMinutos/60), m = planHoraMinutos%60;
+  var el = document.getElementById('plan-hora-display');
+  if (el) el.textContent = h + ':' + String(m).padStart(2,'0');
+  cargarPlanificacionDiaria();
+}
+
+function ajustarMerma(delta) {
+  planMerma = Math.max(0, Math.min(50, planMerma + delta));
+  var el = document.getElementById('plan-merma-display');
+  if (el) el.textContent = planMerma + '%';
+  cargarPlanificacionDiaria();
+}
+
+// ===== ORGANIZADOR =====
+var orgData = {};
+var orgCambios = {};
+var orgDragPedido = null;
+var orgDragFechaOrigen = null;
+
+function cargarOrganizador() {
+  var container = document.getElementById('org-container');
+  if (!container) return;
+  container.innerHTML = '<div class="loading-state"><div class="spinner"></div><p>Cargando...</p></div>';
+  orgCambios = {};
+  actualizarBadgeCambios();
+  fetch('/api/organizador', { headers: { 'X-Session-Token': sessionToken || '' } })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if (!data.ok) { container.innerHTML = '<div class="loading-state"><p>Error: ' + data.error + '</p></div>'; return; }
+      orgData = data.pedidos_por_dia;
+      renderOrganizador(data.dias);
+    })
+    .catch(function(){ container.innerHTML = '<div class="loading-state"><p>Error de conexion</p></div>'; });
+}
+
+function renderOrganizador(dias) {
+  var DIAS_ES = ['Dom','Lun','Mar','Mie','Jue','Vie','Sab'];
+  var MESES_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  var hoy = new Date();
+  var hoyStr = String(hoy.getDate()).padStart(2,'0')+'/'+String(hoy.getMonth()+1).padStart(2,'0')+'/'+hoy.getFullYear();
+  var html = '';
+  dias.forEach(function(fecha) {
+    var parts = fecha.split('/');
+    var d = new Date(parseInt(parts[2]), parseInt(parts[1])-1, parseInt(parts[0]));
+    var diaNom = DIAS_ES[d.getDay()];
+    var mesNom = MESES_ES[d.getMonth()];
+    var isHoy = fecha === hoyStr;
+    var pedidos = orgData[fecha] || [];
+    var totalPalets = pedidos.reduce(function(a,p){ return a+(p.palets||0); }, 0);
+    html += '<div class="org-columna" data-fecha="' + fecha + '" ondragover="orgDragOver(event)" ondrop="orgDrop(event,\'' + fecha + '\')" ondragleave="orgDragLeave(event)">';
+    html += '<div class="org-col-header' + (isHoy ? ' org-col-hoy' : '') + '">';
+    html += '<div class="dia-nom">' + diaNom.toUpperCase() + '</div>';
+    html += '<div class="dia-num">' + parts[0] + '</div>';
+    html += '<div class="dia-mes">' + mesNom + '</div>';
+    html += '<div class="dia-stats">' + pedidos.length + ' ped · ' + totalPalets.toFixed(1) + ' plt</div>';
+    html += '</div>';
+    html += '<div class="org-drop-zone" id="drop-' + fecha.replace(/\//g,'-') + '">';
+    pedidos.forEach(function(p){ html += renderOrgCard(p, fecha); });
+    if (!pedidos.length) html += '<div class="org-empty">Sin pedidos</div>';
+    html += '</div></div>';
+  });
+  document.getElementById('org-container').innerHTML = html;
+}
+
+function renderOrgCard(p, fecha) {
+  var mod = orgCambios[p.pedido] ? ' org-card-modificado' : '';
+  var color = p.tipo === 'PROGRAMA' ? 'var(--azul)' : 'var(--verde-vivo)';
+  return '<div class="org-card' + mod + '" draggable="true" data-pedido="' + p.pedido + '" data-fecha="' + fecha + '" ' +
+    'ondragstart="orgDragStart(event,\'' + p.pedido + '\',\'' + fecha + '\')" ondragend="orgDragEnd(event)">' +
+    '<div style="display:flex;justify-content:space-between;margin-bottom:4px">' +
+    '<span style="font-family:DM Mono,monospace;font-weight:800;font-size:0.85rem;color:' + color + '">#' + p.pedido + '</span>' +
+    '<span style="font-family:DM Mono,monospace;font-size:0.58rem;background:var(--card2);padding:2px 5px;border-radius:4px">' + (p.tipo||'PED') + '</span>' +
+    '</div>' +
+    '<div style="font-family:Syne,sans-serif;font-size:0.72rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + (p.cliente||'') + '</div>' +
+    '<div style="font-family:DM Mono,monospace;font-size:0.62rem;color:var(--texto3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + (p.producto||'') + '</div>' +
+    '<div style="display:flex;gap:6px;margin-top:5px">' +
+    '<span style="font-family:DM Mono,monospace;font-size:0.6rem;color:var(--verde-vivo)">🎯 ' + (p.palets||0).toFixed(1) + ' plt</span>' +
+    '<span style="font-family:DM Mono,monospace;font-size:0.6rem;color:var(--texto3)">📦 ' + (p.bultos||0) + ' blt</span>' +
+    '</div></div>';
+}
+
+function orgDragStart(e, pedido, fecha) { orgDragPedido=pedido; orgDragFechaOrigen=fecha; e.dataTransfer.effectAllowed='move'; e.target.style.opacity='0.4'; }
+function orgDragEnd(e) { e.target.style.opacity='1'; document.querySelectorAll('.org-drop-zone').forEach(function(z){ z.classList.remove('org-drop-active'); }); }
+function orgDragOver(e) { e.preventDefault(); e.currentTarget.querySelector('.org-drop-zone').classList.add('org-drop-active'); }
+function orgDragLeave(e) { if(e.currentTarget.querySelector) e.currentTarget.querySelector('.org-drop-zone').classList.remove('org-drop-active'); }
+
+function orgDrop(e, fechaDest) {
+  e.preventDefault();
+  if (!orgDragPedido || fechaDest === orgDragFechaOrigen) { orgDragPedido=null; return; }
+  var ped = (orgData[orgDragFechaOrigen]||[]).find(function(p){ return p.pedido===orgDragPedido; });
+  if (!ped) return;
+  orgData[orgDragFechaOrigen] = orgData[orgDragFechaOrigen].filter(function(p){ return p.pedido!==orgDragPedido; });
+  ped.fecha = fechaDest;
+  if (!orgData[fechaDest]) orgData[fechaDest]=[];
+  orgData[fechaDest].push(ped);
+  if (!orgCambios[orgDragPedido]) orgCambios[orgDragPedido]={fecha_original:orgDragFechaOrigen,fecha_nueva:fechaDest};
+  else {
+    orgCambios[orgDragPedido].fecha_nueva=fechaDest;
+    if (orgCambios[orgDragPedido].fecha_nueva===orgCambios[orgDragPedido].fecha_original) delete orgCambios[orgDragPedido];
+  }
+  orgDragPedido=null;
+  actualizarBadgeCambios();
+  renderOrganizador(Object.keys(orgData));
+}
+
+function actualizarBadgeCambios() {
+  var n = Object.keys(orgCambios).length;
+  var badge = document.getElementById('org-cambios-badge');
+  var btn = document.getElementById('org-guardar-btn');
+  var cnt = document.getElementById('org-cambios-count');
+  if(cnt) cnt.textContent = n;
+  if(badge) badge.style.display = n>0 ? 'block' : 'none';
+  if(btn) btn.style.display = n>0 ? 'block' : 'none';
+}
+
+function guardarOrganizador() {
+  var movimientos = Object.keys(orgCambios).map(function(ped){ return {pedido:ped,fecha_nueva:orgCambios[ped].fecha_nueva}; });
+  if (!movimientos.length) return;
+  var btn = document.getElementById('org-guardar-btn');
+  if(btn){ btn.textContent='⏳ Guardando...'; btn.disabled=true; }
+  fetch('/api/organizador/mover',{method:'POST',headers:{'Content-Type':'application/json','X-Session-Token':sessionToken||''},body:JSON.stringify({movimientos:movimientos})})
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if(btn) btn.disabled=false;
+      if(data.ok){ orgCambios={}; actualizarBadgeCambios(); if(btn) btn.textContent='✅ Guardado'; setTimeout(function(){ if(btn) btn.textContent='💾 Guardar'; },2000); }
+      else { if(btn) btn.textContent='❌ Error'; alert('Error: '+data.error); setTimeout(function(){ if(btn) btn.textContent='💾 Guardar'; },2000); }
+    });
+}
+
+// ===== INIT =====
+window.addEventListener('load', function() {
+  var s = document.getElementById('screen-login');
+  if (s) s.classList.add('active');
+  var tok = localStorage.getItem('ica_session');
+  if (tok) {
+    sessionToken = tok;
+    onLoginSuccess();
+  }
+});
 </script>
 
 <!-- ===== ORGANIZADOR ===== -->
