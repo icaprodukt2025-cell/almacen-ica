@@ -2010,7 +2010,13 @@ function cargarPedidos() {
 function renderPedidos(pedidos) {
   var container = document.getElementById('pedidos-list');
   if (!container) return;
-  aplicarFiltrosPedidos(pedidos);
+  // Store in pedidosDataCache for compatibility with aplicarFiltrosPedidos
+  if (pedidosFechaSeleccionada) {
+    if (!pedidosDataCache) pedidosDataCache = {};
+    pedidosDataCache[pedidosFechaSeleccionada] = pedidos;
+    fechaSeleccionada = pedidosFechaSeleccionada;
+  }
+  aplicarFiltrosPedidos();
 }
 
 function aplicarFiltrosPedidosLista(pedidos) {
@@ -2359,6 +2365,102 @@ window.addEventListener('load', function() {
     onLoginSuccess();
   }
 });
+
+// ===== CARGAR PLANIFICACION DIARIA =====
+function cargarPlanificacionDiaria() {
+  var inputVal = document.getElementById('plan-fecha-input') ? document.getElementById('plan-fecha-input').value : '';
+  if (!inputVal) return;
+  var parts = inputVal.split('-');
+  var fecha = parts[2] + '/' + parts[1] + '/' + parts[0];
+  var sub = document.getElementById('plan-fecha-sub');
+  if (sub) sub.textContent = fecha;
+  var h = Math.floor(planHoraMinutos/60), m = planHoraMinutos%60;
+  var horaStr = h + ':' + String(m).padStart(2,'0');
+  var container = document.getElementById('plan-list');
+  if (container) container.innerHTML = '<div class="loading-state"><div class="spinner"></div><p>Calculando...</p></div>';
+  fetch('/api/planificacion-diaria?fecha=' + encodeURIComponent(fecha) + '&merma=' + planMerma + '&hora_inicio=' + horaStr, {
+    headers: { 'X-Session-Token': sessionToken || '' }
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    if (!data.ok) { if(container) container.innerHTML = '<div class="loading-state"><p>Error: ' + data.error + '</p></div>'; return; }
+    renderPlanificacion(data);
+  })
+  .catch(function(){ if(container) container.innerHTML = '<div class="loading-state"><p>Error de conexion</p></div>'; });
+}
+
+function renderPlanificacion(data) {
+  var container = document.getElementById('plan-list');
+  if (!container) return;
+  if (!data.pedidos || !data.pedidos.length) {
+    container.innerHTML = '<div class="loading-state"><p>No hay pedidos para ' + data.fecha + '</p></div>';
+    return;
+  }
+  var r = data.resumen;
+  var html = '';
+
+  // RESUMEN
+  html += '<div style="background:var(--card);border:1px solid var(--borde2);border-radius:14px;padding:14px;margin-bottom:12px">';
+  html += '<div style="font-family:DM Mono,monospace;font-size:0.62rem;color:var(--texto3);letter-spacing:0.1em;margin-bottom:10px">RESUMEN ' + data.fecha + ' · MERMA ' + data.merma_pct + '%</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px">';
+  html += planStat2('📦', r.total_pedidos, 'pedidos');
+  html += planStat2('🎯', r.total_palets, 'palets');
+  html += planStat2('📬', r.total_bultos, 'bultos');
+  html += '</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">';
+  html += planStat2('⚖️', r.total_kg_neto + ' kg', 'kg neto');
+  html += planStat2('🌿', r.total_kg_bruto + ' kg', 'campo');
+  html += planStat2('🏷️', r.total_etiquetas, 'etiquetas');
+  html += '</div></div>';
+
+  // POR PRODUCTO
+  if (data.por_producto && data.por_producto.length) {
+    html += '<div style="background:var(--card);border:1px solid var(--borde2);border-radius:14px;padding:14px;margin-bottom:12px">';
+    html += '<div style="font-family:DM Mono,monospace;font-size:0.62rem;color:var(--texto3);letter-spacing:0.1em;margin-bottom:10px">🥦 POR PRODUCTO</div>';
+    data.por_producto.forEach(function(p) {
+      html += '<div style="padding:8px 0;border-bottom:1px solid var(--borde)">';
+      html += '<div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.85rem;margin-bottom:6px">' + p.producto + '</div>';
+      html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:6px">';
+      html += planStat2('', p.bultos + ' blt', 'Bultos');
+      html += planStat2('', p.palets, 'Palets');
+      html += planStat2('', p.kg_neto + ' kg', 'Neto');
+      html += planStat2('', p.kg_bruto + ' kg', 'Campo +' + data.merma_pct + '%');
+      html += '</div>';
+      html += '<div style="display:flex;gap:6px;flex-wrap:wrap">';
+      html += '<span style="background:var(--azul-dim);color:var(--azul);padding:3px 8px;border-radius:6px;font-family:DM Mono,monospace;font-size:0.68rem">👥 ' + p.personas_rec + ' pers</span>';
+      html += '<span style="background:var(--verde-dim);color:var(--verde-vivo);padding:3px 8px;border-radius:6px;font-family:DM Mono,monospace;font-size:0.68rem">⏱ ' + p.horas.toFixed(1) + 'h</span>';
+      html += '<span style="background:var(--card2);padding:3px 8px;border-radius:6px;font-family:DM Mono,monospace;font-size:0.68rem">🏷️ ' + p.etiquetas + ' etq</span>';
+      html += '</div></div>';
+    });
+    html += '</div>';
+  }
+
+  // DETALLE PEDIDOS
+  html += '<div style="background:var(--card);border:1px solid var(--borde2);border-radius:14px;padding:14px">';
+  html += '<div style="font-family:DM Mono,monospace;font-size:0.62rem;color:var(--texto3);letter-spacing:0.1em;margin-bottom:10px">📋 DETALLE POR PEDIDO</div>';
+  data.pedidos.forEach(function(p) {
+    html += '<div style="padding:8px 0;border-bottom:1px solid var(--borde)">';
+    html += '<div style="display:flex;justify-content:space-between;margin-bottom:4px">';
+    html += '<span style="font-family:DM Mono,monospace;font-weight:800;color:var(--verde-vivo)">#' + p.pedido + '</span>';
+    html += '<span style="font-family:DM Mono,monospace;font-size:0.72rem;color:var(--azul);background:var(--azul-dim);padding:2px 8px;border-radius:6px">' + p.hora_inicio + ' → ' + p.hora_fin + '</span>';
+    html += '</div>';
+    html += '<div style="font-family:Syne,sans-serif;font-size:0.78rem;color:var(--texto2);margin-bottom:4px">' + p.cliente + ' · ' + p.producto + '</div>';
+    html += '<div style="display:flex;gap:6px;flex-wrap:wrap">';
+    html += '<span style="background:var(--card2);padding:2px 8px;border-radius:5px;font-family:DM Mono,monospace;font-size:0.68rem">' + p.bultos + ' blt · ' + p.palets + ' plt</span>';
+    html += '<span style="background:var(--card2);padding:2px 8px;border-radius:5px;font-family:DM Mono,monospace;font-size:0.68rem">⚖️ ' + p.kg_neto + ' → 🌿 ' + p.kg_bruto + ' kg</span>';
+    html += '<span style="background:var(--azul-dim);color:var(--azul);padding:2px 8px;border-radius:5px;font-family:DM Mono,monospace;font-size:0.68rem">👥 ' + p.personas_rec + ' · ⏱ ' + p.horas_estimadas + 'h</span>';
+    html += '</div></div>';
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function planStat2(icon, value, label) {
+  return '<div style="background:var(--card2);border-radius:10px;padding:8px;text-align:center">' +
+    (icon ? '<div style="font-size:0.9rem">' + icon + '</div>' : '') +
+    '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.95rem;color:var(--texto)">' + value + '</div>' +
+    '<div style="font-family:DM Mono,monospace;font-size:0.55rem;color:var(--texto3)">' + label + '</div>' +
+    '</div>';
+}
 </script>
 
 <!-- ===== ORGANIZADOR ===== -->
