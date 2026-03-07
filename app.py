@@ -17,7 +17,7 @@ import uuid
 app = Flask(__name__, static_folder='static')
 CORS(app)
 
-ANTHROPIC_API_KEY = os.environ.get("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", "")
+ANTHROPIC_API_KEY = os.environ.get("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", "")
 SHEET_ID = "1S6uocKdf9o-IxWReBxq-1RoNtU_-AXtXe4qYPwv61-c"
 
 # ===== USUARIOS =====
