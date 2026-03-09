@@ -1971,8 +1971,8 @@ def get_sheet_id(service, spreadsheet_id, sheet_name):
 
 @app.route("/api/importar-pdf", methods=["POST"])
 def importar_programa():
-    """Parse PDF usando Claude IA, inserta filas en hoja Pedidos"""
-    import io as _io, re as _re
+    """Parse PDF usando Claude IA"""
+    import io as _io
     try:
         if 'pdf' not in request.files:
             return jsonify({"ok": False, "error": "No se recibio PDF"})
@@ -1983,7 +1983,6 @@ def importar_programa():
 
         file = request.files['pdf']
         file_bytes = file.read()
-        filename = file.filename or ''
 
         # Extraer texto con pdfplumber
         with pdfplumber.open(_io.BytesIO(file_bytes)) as _pdf:
@@ -1997,56 +1996,121 @@ def importar_programa():
             return jsonify({"ok": False, "error": "No se pudo extraer texto del PDF"})
 
         # Detectar tipo
-        es_pedido = any(x in full_text for x in ['PEDIDO A PROVEEDOR', 'Bestellnummer', 'Auftrag'])
+        es_pedido = any(x in full_text for x in ['PEDIDO A PROVEEDOR', 'Bestellnummer'])
         tipo_doc = 'PEDIDO' if es_pedido else 'PROGRAMA'
 
-        prompt = f"""Eres un extractor experto de datos de documentos agricolas espanoles de ICA PRODUKT.
-Analiza este PDF de tipo {tipo_doc} y extrae TODOS los pedidos/lineas.
+        if tipo_doc == 'PEDIDO':
+            prompt = f"""Eres un extractor de datos de pedidos agricolas de ICA PRODUKT (Almeria, España).
 
 TEXTO DEL PDF:
-{full_text[:7000]}
+{full_text[:6000]}
 
-REGLAS SEGUN TIPO:
+ESTRUCTURA DEL DOCUMENTO "PEDIDO A PROVEEDOR":
+1. Cabecera: "Pedido: XXXX" (numero), "Fecha: DD/MM/YYYY" (fecha pedido)
+2. Cliente/destino en la parte superior derecha (ej: "ICA PRODUKT 2025, S.L." / "EDEKA ZENTRALE..." / "ALEMANIA")
+3. Fila de cabecera de tabla: Bestellnummer | Numero Ref. | Fecha Pedido | Fecha Salida | Fecha Llegada | Matricula | Transportista
+4. Fila de datos con esos campos
+5. Segunda tabla de productos con columnas: Presentacion | T.Cult | LOTE | C/C | Envase | Tipo Palet | Kilos | Bul/Plt | Palets | Bultos | Precio | Mar.Material
 
-PROGRAMA SEMANAL:
-- Hay una tabla al final con columnas: Pedido | Carga | Dia | Fecha | Palets | Bultos | Lote
-- Cada fila de la tabla = un pedido separado con numero de pedido distinto
-- La cabecera del documento tiene: PRESENTACION (producto), T.CULTIVO, ENVASE, BULTOS/PALET, MARCA (cliente), PRECIO
-- Ese producto/cultivo/envase/cliente/precio se aplica a TODAS las filas de la tabla
-- Lote: si no hay valor o pone "SIN LOTE" devuelve ""
-- fecha_salida = columna Fecha de la tabla
+REGLAS CRITICAS para extraer productos:
+- "Presentacion": nombre del producto CON su formato (ej: "Bio Pimiento CW Mix 6x400g Flow-Pack"). Flow-Pack, Flowpack, Flow Pack ES PARTE DEL NOMBRE DEL PRODUCTO, NO del envase.
+- "Envase": codigo de bandeja/caja (ej: "EPS 154", "BLL6413", "CARTON"). NUNCA Flow-Pack.
+- "Tipo Palet": (ej: "EURO RET.", "PALET GRANDE"). NUNCA EPS ni numeros solos.
+- "Kilos": peso total en kg (numero entero, ej: 806). NO confundir con Bul/Plt ni precio.
+- "Bul/Plt": bultos por palet (ej: 112). Suele ser entre 50-200.
+- "Palets": numero de palets (decimal, ej: 3.00). Suele ser entre 1-20.
+- "Bultos": total de bultos (entero, ej: 336). = Palets x Bul/Plt normalmente.
+- "Precio": precio unitario (ej: 9.60).
+- "lote": numero de lote (ej: 1201). Si no hay o dice SIN LOTE devuelve "".
+- "t_cult": "ECOLOGICO" si pone ECO/BIO/ECOLOGICO, sino "CONVENCIONAL".
+- "cliente": el nombre del destinatario/cliente (ej: "EDEKA BIO-ROISDORF", "ALDI", "POLONIA").
+- "destino": pais o ciudad (ej: "ALEMANIA", "POLONIA", "GR STUTTGART").
+- "referencia": el Numero Ref. de la tabla de cabecera (ej: "1100584692", "i93167").
+- "fecha_salida": columna "Fecha Salida" de la tabla de cabecera. MUY IMPORTANTE, no confundir con Fecha Pedido.
+- "fecha_llegada": columna "Fecha Llegada".
+- "fecha_pedido": columna "Fecha Pedido".
 
-PEDIDO A PROVEEDOR:
-- Numero de pedido principal junto a "Pedido:" (puede tener caracteres duplicados como "22224488" = "2248")
-- Destino/cliente en la parte superior derecha (ej: "ICA PRODUKT 2025, S.L.", "POLONIA", "ALDI")
-- Referencia junto a "Numero Ref." o "i93167"
-- Fechas en fila de cabecera: Fecha Pedido, Fecha Salida, Fecha Llegada
-- Tabla de productos con: Presentacion, T.Cult, LOTE, C/C, Envase, Tipo Palet, Kilos, Bul/Plt, Palets, Bultos, Precio
-- Si LOTE esta vacio o dice "SIN LOTE" devuelve ""
-- Cada linea de producto = un registro separado con el mismo numero de pedido
+EJEMPLO de linea de producto correctamente parseada:
+Texto: "Bio Pimiento CW Mix 6x400g Flow-Pack ECOLOGICO 1201 I EPS 154 EURO RET. 806 112 3,00 336 9,60 B ALDI"
+Resultado:
+- producto: "Bio Pimiento CW Mix 6x400g Flow-Pack"
+- t_cult: "ECOLOGICO"
+- lote: "1201"
+- envase: "EPS 154"
+- tipo_palet: "EURO RET."
+- kilos: 806
+- bul_plt: 112
+- palets: 3.0
+- bultos: 336
+- precio: "9.60"
 
-IMPORTANTE sobre caracteres duplicados en PDFs escaneados:
-- Textos como "PPOOLLOONNIIAA" = "POLONIA", "22224488" = "2248", "0033//0033//22002266" = "03/03/2026"
-- Corrige estos textos duplicados en todos los campos
-
-Responde UNICAMENTE con JSON valido sin markdown ni texto extra:
+Responde UNICAMENTE con JSON valido sin markdown:
 {{
-  "tipo": "{tipo_doc}",
+  "tipo": "PEDIDO",
   "pedidos": [
     {{
-      "pedido": "numero pedido SIN duplicar",
+      "pedido": "numero sin duplicar",
       "fecha_salida": "DD/MM/YYYY",
       "fecha_llegada": "DD/MM/YYYY o vacio",
       "fecha_pedido": "DD/MM/YYYY o vacio",
-      "producto": "nombre producto y presentacion",
-      "cliente": "nombre cliente o marca (ej: ALDI, ICA PRODUKT)",
-      "destino": "pais o ciudad destino",
-      "referencia": "referencia del cliente",
+      "producto": "nombre completo con formato",
+      "cliente": "nombre cliente/destinatario",
+      "destino": "pais o ciudad",
+      "referencia": "numero referencia",
       "t_cult": "ECOLOGICO o CONVENCIONAL",
-      "lote": "numero lote o vacio si SIN LOTE",
-      "envase": "tipo envase",
+      "lote": "numero o vacio",
+      "envase": "codigo envase",
       "tipo_palet": "tipo palet",
       "kilos": 0,
+      "bul_plt": 0,
+      "palets": 0.0,
+      "bultos": 0,
+      "precio": ""
+    }}
+  ]
+}}"""
+
+        else:  # PROGRAMA SEMANAL
+            prompt = f"""Eres un extractor de datos de programas semanales de ICA PRODUKT (Almeria, España).
+
+TEXTO DEL PDF:
+{full_text[:6000]}
+
+ESTRUCTURA DEL DOCUMENTO "PROGRAMA SEMANAL":
+1. Cabecera con: numero de programa, REF.PROGRAMA (cliente/destino), lugar entrega
+2. Bloque de datos del producto: PRESENTACION, ENVASE, BULTOS/PALET, T.CULTIVO, PRECIO, MARCA, PALET
+3. Tabla al final con columnas: Pedido | Carga | Dia | Fecha | Palets | Bultos | Lote
+4. Cada fila de la tabla = un pedido distinto
+
+REGLAS:
+- El producto, envase, t_cult, precio, marca (=cliente) son IGUALES para todas las filas de la tabla
+- "producto": campo PRESENTACION (ej: "Pimiento Palermo Mix 12x350g")
+- "cliente": campo MARCA (ej: "ALDI", "EDEKA", "REWE")
+- "destino": REF.PROGRAMA o lugar de entrega (ej: "GR STUTTGART", "LANGWIESENWEG 30")
+- "envase": campo ENVASE (ej: "BLL6413", "EPS 154")
+- "bul_plt": campo BULTOS/PALET
+- "t_cult": campo T.CULTIVO
+- "precio": campo PRECIO
+- "fecha_salida": columna Fecha de cada fila de la tabla
+- "lote": columna Lote de cada fila. Si no hay o dice SIN LOTE devuelve "".
+- "palets": columna Palets de cada fila
+- "bultos": columna Bultos de cada fila
+- "pedido": columna Pedido de cada fila (numero distinto por fila)
+
+Responde UNICAMENTE con JSON valido sin markdown:
+{{
+  "tipo": "PROGRAMA",
+  "pedidos": [
+    {{
+      "pedido": "numero",
+      "fecha_salida": "DD/MM/YYYY",
+      "producto": "nombre presentacion",
+      "cliente": "marca/cliente",
+      "destino": "ref programa o lugar entrega",
+      "t_cult": "ECOLOGICO o CONVENCIONAL",
+      "lote": "numero o vacio",
+      "envase": "codigo envase",
+      "tipo_palet": "tipo palet",
       "bul_plt": 0,
       "palets": 0.0,
       "bultos": 0,
@@ -2077,7 +2141,7 @@ Responde UNICAMENTE con JSON valido sin markdown ni texto extra:
             _resp_data = _json.loads(_resp.read().decode("utf-8"))
         raw = _resp_data["content"][0]["text"].strip()
 
-        # Limpiar markdown si hay
+        # Limpiar markdown
         if raw.startswith("```"):
             lines = raw.split("\n")
             raw = "\n".join(lines[1:])
@@ -2093,6 +2157,8 @@ Responde UNICAMENTE con JSON valido sin markdown ni texto extra:
         pedidos = [p for p in pedidos if p.get('pedido') and str(p.get('pedido','')).strip()]
         if not pedidos:
             return jsonify({"ok": False, "error": "Claude no encontro pedidos en el PDF", "raw": raw[:500]})
+
+        tipo_final = tipo_doc
 
         # Insertar en Sheets
         service = get_sheets_service()
@@ -2121,7 +2187,7 @@ Responde UNICAMENTE con JSON valido sin markdown ni texto extra:
             'bultos':       ['bultos', 'total bultos', 'unidades', 'cajas'],
             'precio':       ['precio', 'price', 'p.unit'],
             'transportista':['transportista', 'transport'],
-            'matricula':    ['matricula', 'matrícula'],
+            'matricula':    ['matricula', 'matricula'],
         }
 
         import unicodedata as _ud
@@ -2139,9 +2205,6 @@ Responde UNICAMENTE con JSON valido sin markdown ni texto extra:
                         if field not in header_idx:
                             header_idx[field] = i
                             break
-
-        tipo_final = tipo_doc
-        fecha_procesado = datetime.now().strftime('%d/%m/%Y %H:%M')
 
         def build_row(p):
             row = [''] * max(len(headers), 10)
