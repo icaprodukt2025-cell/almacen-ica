@@ -17,7 +17,7 @@ import uuid
 app = Flask(__name__, static_folder='static')
 CORS(app)
 
-ANTHROPIC_API_KEY = os.environ.get("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", "")
+ANTHROPIC_API_KEY = os.environ.get("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", "")
 SHEET_ID = "1S6uocKdf9o-IxWReBxq-1RoNtU_-AXtXe4qYPwv61-c"
 
 # ===== USUARIOS =====
@@ -457,24 +457,62 @@ def planificacion_diaria():
             df_dia['_ped_sort'] = df_dia[col_pedido].apply(lambda x: int(str(x)) if str(x).isdigit() else 0)
             df_dia = df_dia.sort_values('_ped_sort')
 
-        # ESTANDARES de rendimiento (ya en el JS, los duplicamos aqui)
-        ESTANDARES_PY = {
-            "PALERMO MIX 12X350": {"min_por_bulto": 0.808, "personas_media": 11.0},
-            "PALERMO ROJO 10X500": {"min_por_bulto": 0.851, "personas_media": 11.2},
-            "PEPINO ALMERIA": {"min_por_bulto": 0.379, "personas_media": 11.8},
-            "CALIFORNIA ROJO 5KG": {"min_por_bulto": 0.346, "personas_media": 14.2},
-            "PICANTE MIX 10X50": {"min_por_bulto": 0.46, "personas_media": 8.7},
-            "PEPINO MINI 12X280": {"min_por_bulto": 0.717, "personas_media": 6.8},
-            "CALABACIN": {"min_por_bulto": 0.575, "personas_media": 9.2},
-            "PALERMO 10X200": {"min_por_bulto": 0.605, "personas_media": 10.8},
-            "PEPINO MINI 8X3PZ": {"min_por_bulto": 0.456, "personas_media": 7.1},
-            "TOMATE RAMA 10X500": {"min_por_bulto": 0.712, "personas_media": 12.8},
-        }
+        # ESTANDARES: leer desde hoja Estandares del Sheet
+        ESTANDARES_PY = {}
+        try:
+            _svc_est = get_sheets_service()
+            _est_res = _svc_est.spreadsheets().values().get(
+                spreadsheetId=SHEET_ID, range="Estandares!A:K"
+            ).execute()
+            _est_rows = _est_res.get("values", [])
+            if len(_est_rows) > 1:
+                for _er in _est_rows[1:]:
+                    if not _er or not _er[0]: continue
+                    try:
+                        _prod = str(_er[0]).upper().strip()
+                        _media_min = float(str(_er[1] or 0).replace(',','.')) if len(_er) > 1 else 60.0
+                        _personas  = float(str(_er[8] or 11).replace(',','.')) if len(_er) > 8 else 11.0
+                        # media_min es minutos por PALET con personas_habitual
+                        # min_por_bulto = media_min / bultos_palet / personas
+                        _bul_plt = float(str(_er[4] or 0).replace(',','.')) if len(_er) > 4 else 0
+                        if _bul_plt > 0 and _personas > 0 and _media_min > 0:
+                            _min_por_bulto = _media_min / _bul_plt
+                        else:
+                            _min_por_bulto = 0.6
+                        ESTANDARES_PY[_prod] = {"min_por_bulto": _min_por_bulto, "personas_media": _personas}
+                    except:
+                        continue
+        except:
+            pass
+
+        # Fallback si no hay datos en Sheet
+        if not ESTANDARES_PY:
+            ESTANDARES_PY = {
+                "PALERMO MIX 12X350": {"min_por_bulto": 0.808, "personas_media": 11.0},
+                "PALERMO ROJO 10X500": {"min_por_bulto": 0.851, "personas_media": 11.2},
+                "PEPINO": {"min_por_bulto": 0.379, "personas_media": 11.8},
+                "TOMATE RAMA": {"min_por_bulto": 0.712, "personas_media": 12.8},
+                "PIMIENTO": {"min_por_bulto": 0.6, "personas_media": 11.0},
+            }
 
         def buscar_estandar(producto):
             prod_up = str(producto).upper().strip()
+            # Buscar coincidencia exacta primero
+            if prod_up in ESTANDARES_PY:
+                return ESTANDARES_PY[prod_up]
+            # Buscar coincidencia parcial: el key dentro del producto
+            best_match = None
+            best_len = 0
             for key, val in ESTANDARES_PY.items():
-                if key in prod_up or prod_up.startswith(key[:8]):
+                if key in prod_up and len(key) > best_len:
+                    best_match = val
+                    best_len = len(key)
+            if best_match:
+                return best_match
+            # Buscar palabras clave
+            for key, val in ESTANDARES_PY.items():
+                first_word = key.split()[0] if key.split() else key
+                if first_word in prod_up:
                     return val
             return {"min_por_bulto": 0.6, "personas_media": 11.0}  # default
 
@@ -804,11 +842,26 @@ def api_pedidos():
         col_dest     = exact_col(['Destino'])
         col_llegada  = exact_col(['Fecha Llegada', 'Llegada'])
 
-        # Normalize fecha
+        # Normalize fecha - buscar en múltiples columnas si la principal falla
+        fecha_cols_cands = []
         if col_fecha:
-            df['_fecha'] = df[col_fecha].apply(lambda x: normalizar_fecha(str(x)))
-        else:
-            df['_fecha'] = ''
+            fecha_cols_cands.append(col_fecha)
+        for _c in df.columns:
+            cl = str(_c).lower()
+            if ('fecha' in cl or 'salida' in cl) and _c not in fecha_cols_cands:
+                fecha_cols_cands.append(_c)
+
+        def _get_mejor_fecha(row):
+            for _col in fecha_cols_cands:
+                try:
+                    f = normalizar_fecha(str(row[_col]))
+                    if f and len(f) == 10:
+                        return f
+                except:
+                    continue
+            return ''
+
+        df['_fecha'] = df.apply(_get_mejor_fecha, axis=1)
 
         # Get sorted unique dates
         from datetime import timedelta
@@ -851,7 +904,7 @@ def api_pedidos():
                 'pedido':       ped,
                 'producto':     get_producto(row),
                 'cliente':      get_cliente(row),
-                'fecha_salida': df.at[_, '_fecha'] if col_fecha else '',
+                'fecha_salida': row.get('_fecha', '') if col_fecha else '',
                 'palets':       get_palets(row),
                 'bultos':       int(get_bultos(row)),
                 'kilos':        get_kilos(row),
@@ -1918,222 +1971,129 @@ def get_sheet_id(service, spreadsheet_id, sheet_name):
 
 @app.route("/api/importar-pdf", methods=["POST"])
 def importar_programa():
-    """Parse PDF sin IA - parser especifico para formatos ICA"""
+    """Parse PDF usando Claude IA, inserta filas en hoja Pedidos"""
     import io as _io, re as _re
     try:
         if 'pdf' not in request.files:
             return jsonify({"ok": False, "error": "No se recibio PDF"})
 
+        if not ANTHROPIC_API_KEY:
+            return jsonify({"ok": False, "error": "ANTHROPIC_API_KEY no configurada en Railway Variables"})
+
         file = request.files['pdf']
         file_bytes = file.read()
+        filename = file.filename or ''
 
+        # Extraer texto con pdfplumber
         with pdfplumber.open(_io.BytesIO(file_bytes)) as _pdf:
-            page = _pdf.pages[0]
-            full_text = page.extract_text() or ""
-            tables = page.extract_tables() or []
+            pages_text = []
+            for p in _pdf.pages:
+                t = p.extract_text()
+                if t: pages_text.append(t)
+        full_text = "\n".join(pages_text)
 
         if not full_text.strip():
             return jsonify({"ok": False, "error": "No se pudo extraer texto del PDF"})
 
-        def limpiar_dobles(s):
-            """Elimina caracteres dobles de PDFs escaneados: PPOOLLOONNIIAA -> POLONIA"""
-            if not s: return ''
-            s = str(s).strip()
-            if len(s) >= 4:
-                # Contar pares de caracteres iguales consecutivos
-                pares = sum(1 for i in range(0, len(s)-1, 2) if i+1 < len(s) and s[i] == s[i+1])
-                if pares > len(s) // 4:
-                    return ''.join(s[i] for i in range(0, len(s), 2))
-            return s
-
-        def norm_fecha(s):
-            if not s: return ''
-            s = limpiar_dobles(str(s).strip())
-            m = _re.match(r'(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})', s)
-            if m:
-                return f"{int(m.group(1)):02d}/{int(m.group(2)):02d}/{m.group(3)}"
-            return s
-
-        def detectar_cult(s):
-            s = str(s).upper()
-            if any(x in s for x in ['ECO', 'BIO', 'ECOL']):
-                return 'ECOLOGICO'
-            if 'CONV' in s:
-                return 'CONVENCIONAL'
-            return ''
-
-        def limpiar_num(s):
-            """Extrae número de string como '1.500' o 'NDE1.500' -> '1500'"""
-            s = str(s).replace('.', '').replace(',', '.')
-            m = _re.search(r'[\d]+\.?[\d]*', s)
-            return m.group() if m else ''
-
         # Detectar tipo
-        es_pedido = any(x in full_text for x in ['PEDIDO A PROVEEDOR', 'Bestellnummer'])
+        es_pedido = any(x in full_text for x in ['PEDIDO A PROVEEDOR', 'Bestellnummer', 'Auftrag'])
         tipo_doc = 'PEDIDO' if es_pedido else 'PROGRAMA'
 
-        pedidos = []
+        prompt = f"""Eres un extractor experto de datos de documentos agricolas espanoles de ICA PRODUKT.
+Analiza este PDF de tipo {tipo_doc} y extrae TODOS los pedidos/lineas.
 
-        # ─── PARSER PEDIDO A PROVEEDOR ────────────────────────────────
-        if tipo_doc == 'PEDIDO':
-            # Número de pedido del texto (puede estar duplicado)
-            num_pedido = ''
-            m = _re.search(r'[Pp]edido[:\s]*(\d+)', limpiar_dobles(full_text))
-            if m:
-                num_pedido = limpiar_dobles(m.group(1))
-                # Por si acaso aún está duplicado
-                if len(num_pedido) % 2 == 0:
-                    half = num_pedido[:len(num_pedido)//2]
-                    if half * 2 == num_pedido:
-                        num_pedido = half
+TEXTO DEL PDF:
+{full_text[:7000]}
 
-            # Tabla 2 (índice 1): cabecera con destino y fechas
-            destino = ''
-            ref = ''
-            fecha_pedido = ''
-            fecha_salida = ''
-            fecha_llegada = ''
-            if len(tables) > 1 and len(tables[1]) > 1:
-                row = tables[1][1]
-                destino    = limpiar_dobles(str(row[0] or '').split('\n')[0])
-                ref        = limpiar_dobles(str(row[1] or ''))
-                fecha_pedido = norm_fecha(row[2] or '')
-                fecha_salida = norm_fecha(row[3] or '')
-                fecha_llegada = norm_fecha(row[4] or '') if len(row) > 4 else ''
+REGLAS SEGUN TIPO:
 
-            # Tabla 3 (índice 2): productos
-            if len(tables) > 2 and len(tables[2]) > 1:
-                data_row = tables[2][1]
-                cols = [str(c or '').split('\n') for c in data_row]
-                n_prods = max(len(c) for c in cols)
+PROGRAMA SEMANAL:
+- Hay una tabla al final con columnas: Pedido | Carga | Dia | Fecha | Palets | Bultos | Lote
+- Cada fila de la tabla = un pedido separado con numero de pedido distinto
+- La cabecera del documento tiene: PRESENTACION (producto), T.CULTIVO, ENVASE, BULTOS/PALET, MARCA (cliente), PRECIO
+- Ese producto/cultivo/envase/cliente/precio se aplica a TODAS las filas de la tabla
+- Lote: si no hay valor o pone "SIN LOTE" devuelve ""
+- fecha_salida = columna Fecha de la tabla
 
-                for i in range(n_prods):
-                    def gc(col_idx, idx=i):
-                        if col_idx < len(cols) and idx < len(cols[col_idx]):
-                            return cols[col_idx][idx].strip()
-                        return ''
+PEDIDO A PROVEEDOR:
+- Numero de pedido principal junto a "Pedido:" (puede tener caracteres duplicados como "22224488" = "2248")
+- Destino/cliente en la parte superior derecha (ej: "ICA PRODUKT 2025, S.L.", "POLONIA", "ALDI")
+- Referencia junto a "Numero Ref." o "i93167"
+- Fechas en fila de cabecera: Fecha Pedido, Fecha Salida, Fecha Llegada
+- Tabla de productos con: Presentacion, T.Cult, LOTE, C/C, Envase, Tipo Palet, Kilos, Bul/Plt, Palets, Bultos, Precio
+- Si LOTE esta vacio o dice "SIN LOTE" devuelve ""
+- Cada linea de producto = un registro separado con el mismo numero de pedido
 
-                    presentacion = limpiar_dobles(gc(0))
-                    if not presentacion or len(presentacion) < 3:
-                        continue
-                    # Saltar líneas de notas (SIN ETIQUETA PIEZA, etc.)
-                    if _re.match(r'^(SIN |NOTA|INSTRUC|Total|Descuento)', presentacion, _re.IGNORECASE):
-                        continue
+IMPORTANTE sobre caracteres duplicados en PDFs escaneados:
+- Textos como "PPOOLLOONNIIAA" = "POLONIA", "22224488" = "2248", "0033//0033//22002266" = "03/03/2026"
+- Corrige estos textos duplicados en todos los campos
 
-                    t_cult = gc(1)
-                    lote   = gc(2)
-                    envase = gc(4)
-                    # Kilos está en col 6 como "NDE1.500" o "NDE 450"
-                    kilos_raw = gc(6)
-                    kilos = limpiar_num(_re.sub(r'^[A-Za-z\s]+', '', kilos_raw))
-                    bul_plt = gc(7).replace(',', '.')
-                    palets  = gc(8).replace(',', '.')
-                    bultos  = gc(9)
-                    precio  = gc(10)
+Responde UNICAMENTE con JSON valido sin markdown ni texto extra:
+{{
+  "tipo": "{tipo_doc}",
+  "pedidos": [
+    {{
+      "pedido": "numero pedido SIN duplicar",
+      "fecha_salida": "DD/MM/YYYY",
+      "fecha_llegada": "DD/MM/YYYY o vacio",
+      "fecha_pedido": "DD/MM/YYYY o vacio",
+      "producto": "nombre producto y presentacion",
+      "cliente": "nombre cliente o marca (ej: ALDI, ICA PRODUKT)",
+      "destino": "pais o ciudad destino",
+      "referencia": "referencia del cliente",
+      "t_cult": "ECOLOGICO o CONVENCIONAL",
+      "lote": "numero lote o vacio si SIN LOTE",
+      "envase": "tipo envase",
+      "tipo_palet": "tipo palet",
+      "kilos": 0,
+      "bul_plt": 0,
+      "palets": 0.0,
+      "bultos": 0,
+      "precio": ""
+    }}
+  ]
+}}"""
 
-                    pedidos.append({
-                        'pedido':       num_pedido,
-                        'fecha_salida': fecha_salida,
-                        'fecha_llegada':fecha_llegada,
-                        'fecha_pedido': fecha_pedido,
-                        'destino':      destino,
-                        'referencia':   ref,
-                        'producto':     presentacion,
-                        't_cult':       detectar_cult(t_cult or presentacion),
-                        'lote':         '' if 'SIN' in lote.upper() else lote,
-                        'envase':       envase,
-                        'tipo_palet':   'PALET GRANDE',
-                        'kilos':        kilos,
-                        'bul_plt':      bul_plt,
-                        'palets':       palets,
-                        'bultos':       bultos,
-                        'precio':       precio,
-                    })
+        # Llamar Claude API
+        import urllib.request as _urllib, json as _json
+        _payload = _json.dumps({
+            "model": "claude-haiku-4-5-20251001",
+            "max_tokens": 4000,
+            "messages": [{"role": "user", "content": prompt}]
+        }).encode("utf-8")
 
-        # ─── PARSER PROGRAMA SEMANAL ──────────────────────────────────
-        else:
-            # Extraer datos de cabecera del texto
-            lines = full_text.split('\n')
-            producto_cab = ''
-            t_cult_cab   = ''
-            envase_cab   = ''
-            bul_plt_cab  = ''
-            cliente_cab  = ''
-            precio_cab   = ''
+        _req = _urllib.Request(
+            "https://api.anthropic.com/v1/messages",
+            data=_payload,
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01"
+            },
+            method="POST"
+        )
+        with _urllib.urlopen(_req, timeout=60) as _resp:
+            _resp_data = _json.loads(_resp.read().decode("utf-8"))
+        raw = _resp_data["content"][0]["text"].strip()
 
-            for i, line in enumerate(lines):
-                l = line.strip()
-                if 'PRESENTACION:' in l:
-                    val = l.split('PRESENTACION:', 1)[-1].strip()
-                    if val:
-                        producto_cab = val
-                    elif i + 1 < len(lines):
-                        producto_cab = lines[i+1].strip()
-                if 'T.CULTIVO:' in l:
-                    m2 = _re.search(r'T\.CULTIVO:\s*(\w+)', l)
-                    if m2: t_cult_cab = m2.group(1)
-                if 'ENVASE:' in l:
-                    val = l.split('ENVASE:', 1)[-1].strip()
-                    if val:
-                        envase_cab = val
-                    elif i + 1 < len(lines):
-                        next_l = lines[i+1].strip()
-                        if next_l and not any(k in next_l for k in ['BULTOS','PRECIO','PALET','MARCA']):
-                            envase_cab = next_l
-                if 'BULTOS/PALET:' in l:
-                    m3 = _re.search(r'BULTOS/PALET:\s*([\d]+)', l)
-                    if m3: bul_plt_cab = m3.group(1)
-                if 'MARCA:' in l:
-                    m4 = _re.search(r'MARCA:\s*(.+)', l)
-                    if m4: cliente_cab = m4.group(1).strip()
-                if 'PRECIO:' in l:
-                    m5 = _re.search(r'PRECIO:\s*([\d.,]+)', l)
-                    if m5: precio_cab = m5.group(1)
+        # Limpiar markdown si hay
+        if raw.startswith("```"):
+            lines = raw.split("\n")
+            raw = "\n".join(lines[1:])
+            if raw.endswith("```"):
+                raw = raw[:-3].strip()
 
-            # Limpiar producto: quitar "ICA PRODUKT 2025, S.L." si aparece al inicio
-            if producto_cab:
-                producto_cab = _re.sub(r'^ICA\s+PRODUKT[^a-zA-ZáéíóúÁÉÍÓÚ]*', '', producto_cab).strip()
-                # Quitar texto de empresa al inicio
-                producto_cab = _re.sub(r'^[A-Z\s,\.]+S\.L\.\s*', '', producto_cab).strip()
+        try:
+            data = _json.loads(raw)
+        except Exception as je:
+            return jsonify({"ok": False, "error": f"Claude devolvio JSON invalido: {je}", "raw": raw[:800]})
 
-            # Buscar tabla de pedidos: header "Pedido Carga Dia Fecha Palets Bultos Lote"
-            for tabla in tables:
-                if not tabla or not tabla[0]: continue
-                header_cell = str(tabla[0][0] or '')
-                if 'Pedido' in header_cell and 'Carga' in header_cell and 'Fecha' in header_cell:
-                    if len(tabla) < 2: continue
-                    data_cell = str(tabla[1][0] or '')
-                    for line in data_cell.split('\n'):
-                        line = line.strip()
-                        if not line: continue
-                        # Formato: "2182 620 Lunes 02/03/2026 3,00 168 1004"
-                        m6 = _re.match(
-                            r'(\d{4,6})\s+(\d{3,4})\s+\w+\s+(\d{1,2}/\d{1,2}/\d{4})\s+([\d,]+)\s+(\d+)\s*([\d]*)',
-                            line
-                        )
-                        if m6:
-                            pedidos.append({
-                                'pedido':      m6.group(1),
-                                'fecha_salida':norm_fecha(m6.group(3)),
-                                'producto':    producto_cab,
-                                'cliente':     cliente_cab,
-                                't_cult':      detectar_cult(t_cult_cab or producto_cab),
-                                'envase':      envase_cab,
-                                'bul_plt':     bul_plt_cab,
-                                'palets':      m6.group(4).replace(',', '.'),
-                                'bultos':      m6.group(5),
-                                'lote':        m6.group(6) if m6.group(6) else '',
-                                'precio':      precio_cab,
-                            })
-
+        pedidos = data.get('pedidos', [])
+        pedidos = [p for p in pedidos if p.get('pedido') and str(p.get('pedido','')).strip()]
         if not pedidos:
-            return jsonify({
-                "ok": False,
-                "error": f"No se encontraron pedidos ({tipo_doc}). Comprueba el formato del PDF.",
-                "texto_extraido": full_text[:500]
-            })
+            return jsonify({"ok": False, "error": "Claude no encontro pedidos en el PDF", "raw": raw[:500]})
 
-        # ─── INSERTAR EN SHEETS ───────────────────────────────────────
+        # Insertar en Sheets
         service = get_sheets_service()
         result = service.spreadsheets().values().get(
             spreadsheetId=SHEET_ID, range="Pedidos!1:1"
@@ -2179,6 +2139,7 @@ def importar_programa():
                             header_idx[field] = i
                             break
 
+        tipo_final = tipo_doc
         fecha_procesado = datetime.now().strftime('%d/%m/%Y %H:%M')
 
         def build_row(p):
@@ -2187,8 +2148,8 @@ def importar_programa():
                 if val is None or val == '' or val == 0: return
                 if field in header_idx:
                     row[header_idx[field]] = str(val).strip()
-            sc('pedido',        p.get('pedido',''))
-            sc('tipo',          tipo_doc)
+            sc('pedido',        str(p.get('pedido','')).strip())
+            sc('tipo',          tipo_final)
             sc('cliente',       p.get('cliente',''))
             sc('destino',       p.get('destino','') or p.get('cliente',''))
             sc('referencia',    p.get('referencia',''))
@@ -2200,10 +2161,10 @@ def importar_programa():
             sc('lote',          p.get('lote',''))
             sc('envase',        p.get('envase',''))
             sc('tipo_palet',    p.get('tipo_palet',''))
-            sc('kilos',         p.get('kilos',''))
-            sc('bul_plt',       p.get('bul_plt',''))
-            sc('palets',        p.get('palets',''))
-            sc('bultos',        p.get('bultos',''))
+            sc('kilos',         p.get('kilos','') if p.get('kilos') else '')
+            sc('bul_plt',       p.get('bul_plt','') if p.get('bul_plt') else '')
+            sc('palets',        p.get('palets','') if p.get('palets') else '')
+            sc('bultos',        p.get('bultos','') if p.get('bultos') else '')
             sc('precio',        p.get('precio',''))
             sc('transportista', p.get('transportista',''))
             sc('matricula',     p.get('matricula',''))
@@ -2235,7 +2196,7 @@ def importar_programa():
 
         return jsonify({
             "ok": True,
-            "tipo": tipo_doc,
+            "tipo": tipo_final,
             "importados": len(rows_to_add),
             "pedidos": pedidos
         })
