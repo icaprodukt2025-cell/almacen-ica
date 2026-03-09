@@ -935,6 +935,14 @@ def test_anthropic():
             _data = _json.loads(_resp.read().decode("utf-8"))
         result["api_ok"] = True
         result["response"] = _data["content"][0]["text"]
+    except _urllib.error.HTTPError as e:
+        result["api_ok"] = False
+        result["http_status"] = e.code
+        try:
+            result["error_body"] = e.read().decode("utf-8")
+        except:
+            result["error_body"] = str(e)
+        result["error"] = str(e)
     except Exception as e:
         result["api_ok"] = False
         result["error"] = str(e)
