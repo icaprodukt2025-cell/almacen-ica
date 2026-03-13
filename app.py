@@ -2361,10 +2361,9 @@ def manipulado_cola():
     """Devuelve las líneas de manipulado para la fecha dada."""
     fecha = request.args.get("fecha", now_madrid().strftime("%d/%m/%Y"))
     try:
-        ensure_manipulado_sheet()
         service = get_sheets_service()
         result = service.spreadsheets().values().get(
-            spreadsheetId=SHEET_ID, range=f"{MANIPULADO_SHEET}!A:P"
+            spreadsheetId=SHEET_ID, range=f"{MANIPULADO_SHEET}!A:O"
         ).execute()
         rows = result.get("values", [])
         if len(rows) < 2:
@@ -2377,7 +2376,7 @@ def manipulado_cola():
 
         lineas = []
         for i, row in enumerate(rows[1:], start=2):
-            def g(n):
+            def g(n, row=row):
                 idx = col(n)
                 return row[idx].strip() if idx >= 0 and idx < len(row) else ""
 
@@ -2385,23 +2384,27 @@ def manipulado_cola():
             if f != fecha:
                 continue
 
+            estado = g("estado") or "espera"
+            if estado == "anulado":
+                continue
+
             lineas.append({
                 "row": i,
+                "id": g("id"),
                 "fecha": f,
                 "pedido": g("pedido"),
                 "producto": g("producto"),
                 "cliente": g("cliente"),
                 "palet": g("palet"),
                 "bultos": g("bultos"),
-                "lote": g("lote"),
-                "personas": g("personas") or "1",
-                "estado": g("estado") or "espera",
+                "linea": g("linea"),
+                "estado": estado,
                 "inicio": g("inicio"),
                 "fin": g("fin"),
                 "minutos": g("minutos"),
-                "destrio": g("destrio") or "0",
+                "personas": g("personas") or "1",
                 "observaciones": g("observaciones"),
-                "linea": g("linea"),
+                "lote": g("trazas"),
             })
 
         return jsonify({"ok": True, "lineas": lineas, "fecha": fecha})
@@ -2423,34 +2426,37 @@ def manipulado_asignar():
         fecha = now_madrid().strftime("%d/%m/%Y")  # Siempre fecha de hoy, no fecha salida
 
         # Verificar si ya existe este pedido en manipulado hoy
+        # Estructura: A=ID, B=Fecha, C=Pedido
         existing = service.spreadsheets().values().get(
-            spreadsheetId=SHEET_ID, range=f"{MANIPULADO_SHEET}!A:B"
+            spreadsheetId=SHEET_ID, range=f"{MANIPULADO_SHEET}!A:C"
         ).execute()
         ex_rows = existing.get("values", [])
         for ex_row in ex_rows[1:]:
-            if len(ex_row) >= 2 and ex_row[0] == fecha and str(ex_row[1]).strip() == pedido:
+            ex_fecha = ex_row[1].strip() if len(ex_row) > 1 else ""
+            ex_pedido = ex_row[2].strip() if len(ex_row) > 2 else ""
+            if ex_fecha == fecha and ex_pedido == pedido:
                 return jsonify({"ok": False, "error": f"El pedido {pedido} ya está en manipulado hoy", "ya_existe": True})
 
+        import uuid
         fila = [
-            fecha,
-            pedido,
-            data.get("producto", ""),
-            data.get("cliente", ""),
-            data.get("palet", ""),
-            data.get("bultos", ""),
-            data.get("lote", ""),
-            str(data.get("personas", 1)),
-            "espera",  # estado inicial
-            "",  # inicio
-            "",  # fin
-            "",  # minutos
-            "0",  # destrio
-            data.get("observaciones", ""),
-            now_madrid().strftime("%d/%m/%Y %H:%M"),
-            data.get("linea", ""),  # linea fisica (L1, L2, L3...)
+            str(uuid.uuid4())[:8].upper(),  # ID
+            fecha,                           # Fecha
+            pedido,                          # Pedido
+            data.get("producto", ""),        # Producto
+            data.get("cliente", ""),         # Cliente
+            data.get("palet", ""),           # Palet
+            data.get("bultos", ""),          # Bultos
+            data.get("linea", ""),           # Linea
+            "espera",                        # Estado
+            "",                              # Inicio
+            "",                              # Fin
+            "",                              # Minutos
+            str(data.get("personas", 1)),    # Personas
+            data.get("observaciones", ""),   # Observaciones
+            data.get("lote", ""),            # Trazas
         ]
         service.spreadsheets().values().append(
-            spreadsheetId=SHEET_ID, range=f"{MANIPULADO_SHEET}!A:P",
+            spreadsheetId=SHEET_ID, range=f"{MANIPULADO_SHEET}!A:O",
             valueInputOption="RAW", insertDataOption="INSERT_ROWS",
             body={"values": [fila]}
         ).execute()
@@ -2470,7 +2476,7 @@ def manipulado_estado():
         service = get_sheets_service()
         # Leer cabecera para saber columnas
         result = service.spreadsheets().values().get(
-            spreadsheetId=SHEET_ID, range=f"{MANIPULADO_SHEET}!A1:O1"
+            spreadsheetId=SHEET_ID, range=f"{MANIPULADO_SHEET}!A1:P1"
         ).execute()
         headers = [h.lower().strip() for h in (result.get("values", [[]])[0])]
 
@@ -2509,14 +2515,19 @@ def manipulado_estado():
                 updates.append({"range": f"{MANIPULADO_SHEET}!{c}{row}", "values": [[str(personas)]]})
         lote = data.get("lote")
         if lote is not None:
-            c = col_letter("lote")
+            c = col_letter("trazas")  # en la hoja se llama Trazas
             if c:
                 updates.append({"range": f"{MANIPULADO_SHEET}!{c}{row}", "values": [[lote]]})
-        destrio = data.get("destrio")
-        if destrio is not None:
-            c = col_letter("destrio")
+        palet = data.get("palet")
+        if palet is not None:
+            c = col_letter("palet")
             if c:
-                updates.append({"range": f"{MANIPULADO_SHEET}!{c}{row}", "values": [[str(destrio)]]})
+                updates.append({"range": f"{MANIPULADO_SHEET}!{c}{row}", "values": [[str(palet)]]})
+        linea = data.get("linea")
+        if linea is not None:
+            c = col_letter("linea")
+            if c:
+                updates.append({"range": f"{MANIPULADO_SHEET}!{c}{row}", "values": [[str(linea)]]})
 
         if updates:
             service.spreadsheets().values().batchUpdate(
@@ -2571,12 +2582,15 @@ def manipulado_destrio():
         fecha = now_madrid().strftime("%d/%m/%Y")  # Siempre fecha de hoy, no fecha salida
 
         # Verificar si ya existe este pedido en manipulado hoy
+        # Estructura: A=ID, B=Fecha, C=Pedido
         existing = service.spreadsheets().values().get(
-            spreadsheetId=SHEET_ID, range=f"{MANIPULADO_SHEET}!A:B"
+            spreadsheetId=SHEET_ID, range=f"{MANIPULADO_SHEET}!A:C"
         ).execute()
         ex_rows = existing.get("values", [])
         for ex_row in ex_rows[1:]:
-            if len(ex_row) >= 2 and ex_row[0] == fecha and str(ex_row[1]).strip() == pedido:
+            ex_fecha = ex_row[1].strip() if len(ex_row) > 1 else ""
+            ex_pedido = ex_row[2].strip() if len(ex_row) > 2 else ""
+            if ex_fecha == fecha and ex_pedido == pedido:
                 return jsonify({"ok": False, "error": f"El pedido {pedido} ya está en manipulado hoy", "ya_existe": True})
 
         fila = [
