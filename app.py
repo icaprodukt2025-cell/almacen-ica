@@ -1506,41 +1506,6 @@ def debug_estado():
     except Exception as e:
         return jsonify({"error": str(e)})
 
-@app.route("/api/estado", methods=["POST"])
-def set_estado():
-    """Save a state change"""
-    try:
-        import json as json_mod
-        data = request.get_json(force=True)
-        if not data:
-            return jsonify({"ok": False, "error": "No JSON received"})
-        service = get_sheets_service()
-        ts = now_madrid().strftime("%Y-%m-%d %H:%M:%S")
-        # Build valor: if extra fields, store as JSON
-        valor = data.get("valor", "")
-        extra_keys = ["matricula", "cargado_por", "hora_carga", "observaciones"]
-        extra = {k: data[k] for k in extra_keys if data.get(k)}
-        if extra:
-            # valor is the estado string, encode extras into JSON
-            extra["estado"] = str(valor) if valor else str(data.get("valor",""))
-            valor = json_mod.dumps(extra, ensure_ascii=False)
-        elif isinstance(valor, dict):
-            valor = json_mod.dumps(valor, ensure_ascii=False)
-        elif not isinstance(valor, str):
-            valor = str(valor)
-        row = [[ts, str(data.get("pedido", "")), str(data.get("tipo", "")), valor]]
-        service.spreadsheets().values().append(
-            spreadsheetId=SHEET_ID,
-            range=f"{ESTADO_SHEET}!A1",
-            valueInputOption="RAW",
-            insertDataOption="INSERT_ROWS",
-            body={"values": row}
-        ).execute()
-        return jsonify({"ok": True})
-    except Exception as e:
-        import traceback
-        return jsonify({"ok": False, "error": str(e), "trace": traceback.format_exc()})
-
 
 @app.route("/api/cargas")
 def cargas():
@@ -2684,55 +2649,7 @@ def manipulado_lineas():
         return jsonify({"ok": True, "lineas": [], "error": str(e)})
 
 
-@app.route("/api/manipulado/destrio", methods=["POST"])
-def manipulado_destrio():
-    """Registrar destrío rápido."""
-    data = request.get_json() or {}
-    try:
-        service = get_sheets_service()
-        fecha = now_madrid().strftime("%d/%m/%Y")  # Siempre fecha de hoy, no fecha salida
 
-        # Verificar si ya existe este pedido en manipulado hoy
-        # Estructura: A=ID, B=Fecha, C=Pedido
-        existing = service.spreadsheets().values().get(
-            spreadsheetId=SHEET_ID, range=f"{MANIPULADO_SHEET}!A:C"
-        ).execute()
-        ex_rows = existing.get("values", [])
-        palet_nuevo = str(data.get("palet", "")).strip()
-        for ex_row in ex_rows[1:]:
-            ex_fecha = ex_row[1].strip() if len(ex_row) > 1 else ""
-            ex_pedido = ex_row[2].strip() if len(ex_row) > 2 else ""
-            ex_palet = ex_row[5].strip() if len(ex_row) > 5 else ""
-            # Solo bloquear si mismo pedido Y mismo número de palet
-            if ex_fecha == fecha and ex_pedido == pedido and ex_palet == palet_nuevo and palet_nuevo:
-                return jsonify({"ok": False, "error": f"El pedido {pedido} palet {palet_nuevo} ya está en manipulado", "ya_existe": True})
-
-        fila = [
-            fecha,
-            data.get("pedido", "DESTRIO"),
-            data.get("producto", ""),
-            "",  # cliente
-            "",  # palet
-            "",  # bultos
-            "",  # lote
-            "",  # personas
-            "destrio",
-            "", "", "",
-            str(data.get("kilos", 0)),
-            data.get("motivo", ""),
-            now_madrid().strftime("%d/%m/%Y %H:%M")
-        ]
-        service.spreadsheets().values().append(
-            spreadsheetId=SHEET_ID, range=f"{MANIPULADO_SHEET}!A:P",
-            valueInputOption="RAW", insertDataOption="INSERT_ROWS",
-            body={"values": [fila]}
-        ).execute()
-        return jsonify({"ok": True})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)})
-
-
-# ===== STOCK =====
 @app.route("/api/stock")
 def stock():
     """Devuelve datos de stock calculados desde la hoja Stock."""
