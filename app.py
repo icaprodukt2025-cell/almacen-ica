@@ -1265,7 +1265,10 @@ def planificacion():
             "kilos":         str(row.get("Kilos", "") or ""),
             "fecha_pedido":  str(row.get("Fecha Pedido", "") or ""),
             "fecha_llegada": str(row.get("Fecha Llegada", "") or ""),
-            "modificacion":  False
+            "modificacion":  False,
+            "t_cult":         str(row.get("T.Cult", "") or row.get("TCult", "") or ""),
+            "min_palet":      0,
+            "personas_std":   0,
         }
         # Detectar modificacion: mismo pedido+producto ya existe en este dia
         if fecha in dias:
@@ -1275,6 +1278,35 @@ def planificacion():
                     entry["modificacion"] = True
                     break
         dias[fecha].append(entry)
+
+    # Cruzar con estándares para añadir min_palet y personas_std
+    try:
+        _, df_est, _ = load_data()
+        if df_est is not None and not df_est.empty:
+            est_map = {}
+            for _, er in df_est.iterrows():
+                prod = str(er.get("PRODUCTO", "") or "").strip().upper()
+                if prod:
+                    try: media = float(str(er.get("MEDIA_MIN_PALET", 0) or 0).replace(",", "."))
+                    except: media = 0
+                    try: pers = float(str(er.get("PERSONAS_HABITUAL", 0) or 0).replace(",", "."))
+                    except: pers = 0
+                    est_map[prod] = {"min_palet": media, "personas_std": pers}
+            for fecha_d, pedidos_d in dias.items():
+                for p in pedidos_d:
+                    key = str(p.get("producto", "")).strip().upper()
+                    if key in est_map:
+                        p["min_palet"] = est_map[key]["min_palet"]
+                        p["personas_std"] = est_map[key]["personas_std"]
+                    else:
+                        # Partial match
+                        for k, v in est_map.items():
+                            if k in key or key in k:
+                                p["min_palet"] = v["min_palet"]
+                                p["personas_std"] = v["personas_std"]
+                                break
+    except Exception as e:
+        pass  # Si falla el cruce no rompemos la planificación
 
     return jsonify({"dias": dias, "debug_fechas": sample_fechas})
 
