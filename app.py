@@ -2454,12 +2454,19 @@ def manipulado_asignar():
             data.get("observaciones", ""),   # Observaciones
             data.get("lote", ""),            # Trazas
         ]
-        service.spreadsheets().values().append(
-            spreadsheetId=SHEET_ID, range=f"{MANIPULADO_SHEET}!A:O",
-            valueInputOption="RAW", insertDataOption="INSERT_ROWS",
+        # Leer cuántas filas tiene la hoja para escribir en la siguiente
+        count_result = service.spreadsheets().values().get(
+            spreadsheetId=SHEET_ID, range=f"{MANIPULADO_SHEET}!A:A"
+        ).execute()
+        next_row = len(count_result.get("values", [])) + 1
+
+        service.spreadsheets().values().update(
+            spreadsheetId=SHEET_ID,
+            range=f"{MANIPULADO_SHEET}!A{next_row}:O{next_row}",
+            valueInputOption="RAW",
             body={"values": [fila]}
         ).execute()
-        return jsonify({"ok": True})
+        return jsonify({"ok": True, "row": next_row})
     except Exception as e:
         import traceback
         return jsonify({"ok": False, "error": str(e), "trace": traceback.format_exc()[-500:]})
