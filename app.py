@@ -1281,7 +1281,7 @@ def planificacion():
 
     # Cruzar con estándares para añadir min_palet y personas_std
     try:
-        _, df_est, _ = load_data()
+        df_est = sheet_to_dataframe(service, "Estandares")
         if df_est is not None and not df_est.empty:
             est_map = {}
             for _, er in df_est.iterrows():
@@ -2342,6 +2342,19 @@ def ensure_manipulado_sheet():
             ).execute()
     except Exception as e:
         print(f"ensure_manipulado_sheet error: {e}")
+
+@app.route("/api/manipulado/debug")
+def manipulado_debug():
+    """Ver filas crudas de la hoja Manipulado."""
+    try:
+        service = get_sheets_service()
+        result = service.spreadsheets().values().get(
+            spreadsheetId=SHEET_ID, range=f"{MANIPULADO_SHEET}!A:P"
+        ).execute()
+        rows = result.get("values", [])
+        return jsonify({"ok": True, "total_rows": len(rows), "rows": rows[:10]})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
 
 @app.route("/api/manipulado/cola")
 def manipulado_cola():
