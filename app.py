@@ -2421,7 +2421,6 @@ def manipulado_asignar():
     if not pedido:
         return jsonify({"ok": False, "error": "Pedido requerido"})
     try:
-        ensure_manipulado_sheet()
         service = get_sheets_service()
         fecha = now_madrid().strftime("%d/%m/%Y")  # Siempre fecha de hoy, no fecha salida
 
@@ -2462,7 +2461,8 @@ def manipulado_asignar():
         ).execute()
         return jsonify({"ok": True})
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)})
+        import traceback
+        return jsonify({"ok": False, "error": str(e), "trace": traceback.format_exc()[-500:]})
 
 
 @app.route("/api/manipulado/estado", methods=["POST"])
@@ -2577,7 +2577,6 @@ def manipulado_destrio():
     """Registrar destrío rápido."""
     data = request.get_json() or {}
     try:
-        ensure_manipulado_sheet()
         service = get_sheets_service()
         fecha = now_madrid().strftime("%d/%m/%Y")  # Siempre fecha de hoy, no fecha salida
 
