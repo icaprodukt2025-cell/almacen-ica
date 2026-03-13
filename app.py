@@ -2340,6 +2340,27 @@ def alertas():
 
 # ===== MANIPULADO =====
 MANIPULADO_SHEET = "Manipulado"
+ESTADO_SHEET = "Estado"
+
+def ensure_estado_sheet(service=None):
+    """Crea la hoja Estado si no existe."""
+    try:
+        if service is None:
+            service = get_sheets_service()
+        meta = service.spreadsheets().get(spreadsheetId=SHEET_ID).execute()
+        sheet_names = [s['properties']['title'] for s in meta.get('sheets', [])]
+        if ESTADO_SHEET not in sheet_names:
+            service.spreadsheets().batchUpdate(
+                spreadsheetId=SHEET_ID,
+                body={"requests": [{"addSheet": {"properties": {"title": ESTADO_SHEET}}}]}
+            ).execute()
+            service.spreadsheets().values().update(
+                spreadsheetId=SHEET_ID, range=f"{ESTADO_SHEET}!A1",
+                valueInputOption="RAW",
+                body={"values": [["Timestamp", "Pedido", "Estado", "Usuario"]]}
+            ).execute()
+    except Exception:
+        pass
 
 def ensure_manipulado_sheet():
     """Crear hoja Manipulado si no existe."""
